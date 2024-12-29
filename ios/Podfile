@@ -1,0 +1,16 @@
+# Insérez la plateforme cible pour iOS
+platform :ios, '13.0'
+
+# Ignorer les avertissements de Flutter
+inhibit_all_warnings!
+
+# Utiliser les dépendances Flutter
+flutter_application_path = File.expand_path('..', __FILE__)
+load File.join(flutter_application_path, '.flutter-plugins-dependencies')
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
