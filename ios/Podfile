@@ -1,5 +1,6 @@
 # Insérez ceci en haut de votre Podfile
-require File.expand_path('../Flutter/flutter_export_environment.sh', __FILE__)
+require File.expand_path('Flutter/flutter_export_environment.sh', __dir__)
+
 require File.expand_path('../Flutter/podhelper.rb', __FILE__)
 
 # Insérez la plateforme cible pour iOS
