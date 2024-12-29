@@ -1,6 +1,6 @@
 # Insérez ceci en haut de votre Podfile
-require File.expand_path('../flutter_export_environment', __FILE__)
-require File.expand_path('../.ios/Flutter/podhelper.rb', __FILE__)
+require File.expand_path('../Flutter/flutter_export_environment.sh', __FILE__)
+require File.expand_path('../Flutter/podhelper.rb', __FILE__)
 
 # Insérez la plateforme cible pour iOS
 platform :ios, '13.0'
@@ -15,11 +15,10 @@ unless File.exist?(File.join(flutter_application_path, '.flutter-plugins-depende
 end
 load File.join(flutter_application_path, '.flutter-plugins-dependencies')
 
-
-
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
+
