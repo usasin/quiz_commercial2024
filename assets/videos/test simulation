@@ -1,0 +1,519 @@
+import 'package:easy_localization/easy_localization.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../services/gpt_service.dart';
+import 'package:video_player/video_player.dart';
+enum SalesStep {
+  Introduction,
+  Motivation,
+  CurrentSituation,
+  Pain,
+  DesiredSituation,
+  OurSolution,
+  Objections,
+  Validation,
+  Recap,
+  Closing,
+}
+
+class Simulation extends StatefulWidget {
+  final String chapterId;
+  Simulation({required this.chapterId});
+
+  @override
+  _SimulationState createState() => _SimulationState();
+}
+
+class _SimulationState extends State<Simulation> {
+  final TextEditingController _controller = TextEditingController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool isRecruiterSpeaking = false;
+  final GptService _gptService = GptService(); // Réinclusion du service GPT
+  final FlutterTts flutterTts = FlutterTts();
+  final stt.SpeechToText speech = stt.SpeechToText();
+  String? salesScript;
+  bool _isListening = false;
+  bool _awaitingValidation = false; // Ajout pour gérer l'état de validation
+  Duration maxSilence = Duration(seconds: 30); // Temps maximum de silence autorisé
+  String? userProfilePhotoUrl;
+  late VideoPlayerController _videoController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Initialisation du contrôleur vidéo
+    _videoController = VideoPlayerController.asset('assets/videos/recruiter_intro.mp4')
+      ..initialize().then((_) {
+        setState(() {
+          _videoController.play(); // Lecture immédiate une fois initialisé
+        });
+      });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      String currentLanguage = context.locale.languageCode;
+      _configureTts(currentLanguage);
+
+      // Démarrer la vidéo synchronisée avec le TTS
+      _playIntroductionMessage();
+    });
+
+    _initializeSalesScript();
+    _loadUserProfile();
+  }
+  Future<void> _loadUserProfile() async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && currentUser.photoURL != null) {
+      setState(() {
+        userProfilePhotoUrl = currentUser.photoURL;
+      });
+    }
+  }
+
+  Future<void> _initializeSalesScript() async {
+    String scriptId = widget.chapterId;
+    DocumentSnapshot doc = await FirebaseFirestore.instance.collection('scripts').doc(scriptId).get();
+
+    if (doc.exists && doc.data() != null) {
+      setState(() {
+        salesScript = doc['sales_script'] ?? '';  // Vérifier si le script existe
+      });
+    } else {
+      print("Le script pour ce chapitre n'existe pas.");
+    }
+  }
+
+  String getSalesTechnique(String chapterId) {
+    switch (chapterId) {
+      case 'chapter1':
+        return "Vente Directe (Porte-à-Porte, One-Shot)";
+      case 'chapter2':
+        return "Setting & Closing à Vente Distance";
+      case 'chapter3':
+        return "La Vente en GMS";
+      case 'chapter4':
+        return "Commercial en Immobilier";
+      case 'chapter5':
+        return "La Vente Consultative";
+      case 'chapter6':
+        return "Responsable Commercial / Manager Commercial";
+      case 'chapter7':
+        return "Commerciaux High Ticket (Ventes à Haute Valeur)";
+      case 'chapter8':
+        return "Marketing Digital et Community Management";
+      default:
+        return "technique de vente non spécifiée";
+    }
+  }
+
+  Future<void> _playIntroductionMessage() async {
+    String message = "Bienvenue dans le Mode Libre de la simulation. "
+        "Vous suivrez toutes les étapes de vente, de l'introduction à la conclusion. "
+        "À la fin, un rapport sera généré. Appuyez sur 'Parler' ou tapez vos réponses pour interagir.".tr();
+
+    if (_videoController.value.isInitialized) {
+      // Attendre que la vidéo soit prête à jouer
+      _videoController.seekTo(Duration.zero); // Revenir au début
+      _videoController.play(); // Commencer la lecture
+      await Future.delayed(Duration(milliseconds: 200)); // Petit délai pour synchroniser
+
+      // Vérifier si la vidéo est réellement en cours de lecture avant de démarrer le TTS
+      while (!_videoController.value.isPlaying) {
+        await Future.delayed(Duration(milliseconds: 100));
+      }
+    } else {
+      print("La vidéo n'est pas prête.");
+    }
+
+    // Démarrer le TTS après s'assurer que la vidéo a bien démarré
+    await flutterTts.speak(message);
+
+    // Arrêter la vidéo à la fin du TTS
+    flutterTts.setCompletionHandler(() {
+      if (_videoController.value.isInitialized) {
+        _videoController.pause();
+      }
+    });
+  }
+
+
+  /// Configure TTS avec les paramètres de langue
+  void _configureTts(String languageCode) async {
+    await flutterTts.setLanguage(languageCode);
+    flutterTts.setPitch(1.0);
+    flutterTts.setSpeechRate(0.6);
+    flutterTts.setVolume(1.0);
+  }
+
+
+  /// Synchronise la vidéo avec le TTS
+  Future<void> _playVideoWithTTS(String text) async {
+    setState(() {
+      isRecruiterSpeaking = true;
+    });
+
+    if (_videoController.value.isInitialized) {
+      _videoController.seekTo(Duration.zero);
+      _videoController.play();
+
+      // Attendre que la vidéo démarre avant de lancer le TTS
+      while (!_videoController.value.isPlaying) {
+        await Future.delayed(Duration(milliseconds: 100));
+      }
+    }
+
+    // Lancer le TTS
+    await flutterTts.speak(text);
+
+    // Arrêter la vidéo et synchroniser la fin
+    flutterTts.setCompletionHandler(() {
+      if (_videoController.value.isInitialized) {
+        _videoController.pause();
+      }
+      setState(() {
+        isRecruiterSpeaking = false;
+      });
+    });
+  }
+
+
+  final List<Map<String, dynamic>> _messages = [
+    {
+      "role": "system",
+      'content': "Bienvenue dans le Mode Libre de la simulation. Vous suivrez toutes les étapes de vente, de l'introduction à la conclusion. À la fin, un rapport sera généré.".tr()
+    },
+  ];
+
+  void _sendMessage(String content) async {
+    setState(() {
+      _messages.add({
+        'role': 'user',
+        'content': content,
+      });
+    });
+
+    try {
+      // Prompt ajusté pour laisser une flexibilité sur les questions ouvertes
+      String contextPrompt = "Vous êtes un gérant dans une simulation de vente. "
+          "Répondez de manière simple et directe aux questions du commercial. "
+          "Pour les **questions fermées** ou très spécifiques (par exemple, 'Quel est votre prénom ?'), "
+          "répondez uniquement avec l'information demandée sans poser de questions supplémentaires. "
+          "Pour les **questions ouvertes** ou quand le commercial invite à une discussion (par exemple, 'Quelles sont vos priorités ?'), "
+          "vous pouvez donner une réponse plus détaillée et poser une question en retour si cela est pertinent pour approfondir la conversation. "
+          "Gardez un ton amical et professionnel, sans donner l'impression d'un interrogatoire ou d’un entretien formel.";
+
+      final combinedScript = "$contextPrompt\n$salesScript";
+
+      // Appel à GPT pour générer une réponse
+      final response = await _gptService.generateTextBasedOnSalesScript(_messages, combinedScript);
+      _addRecruiterQuestion(response);
+    } catch (e) {
+      // Gestion des erreurs
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur lors de la génération de la réponse de l'IA.")));
+    }
+  }
+
+
+
+  /// Gérer les réponses de GPT
+  Future<void> _addRecruiterQuestion(String question) async {
+    setState(() {
+      _messages.add({
+        'role': 'assistant',
+        'content': question,
+      });
+    });
+    await _playVideoWithTTS(question);
+  }
+
+  Future<void> _startListening() async {
+    bool available = await speech.initialize(
+      onStatus: (status) {
+        if (status == 'listening') {
+          setState(() {
+            _isListening = true;
+          });
+        }
+      },
+      onError: (error) => print('onError: $error'),
+    );
+
+    if (available) {
+      speech.listen(
+        listenFor: Duration(minutes: 1), // Délai d'écoute maximal
+        pauseFor: Duration(minutes: 1),  // Délai d'inactivité avant arrêt augmenté au maximum
+        onResult: (result) {
+          _controller.text = result.recognizedWords;
+        },
+      );
+    }
+  }
+
+
+  void _stopListening() {
+    speech.stop();
+    setState(() {
+      _isListening = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    flutterTts.stop();
+    speech.stop();
+    _videoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _speak(String text) async {
+    setState(() {
+      isRecruiterSpeaking = true;
+    });
+    await flutterTts.speak(text);
+    setState(() {
+      isRecruiterSpeaking = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      key: _scaffoldKey,
+      body: Column(
+        children: <Widget>[
+          Container(
+            padding: EdgeInsets.only(top: 50, left: 10, right: 10),
+            color: Colors.brown.shade50,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                IconButton(
+                  icon: Icon(Icons.arrow_back, color: Colors.black87),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                ElevatedButton.icon(
+                  icon: Icon(Icons.save, color: Colors.blueAccent.shade700),
+                  label: Text('Sauvegarder'.tr()),
+                  onPressed: endOfSimulation,
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: Colors.blueAccent,
+                    backgroundColor: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),// Affichage de la vidéo
+          if (_videoController.value.isInitialized)
+            Container(
+              height: 200,
+              child: AspectRatio(
+                aspectRatio: _videoController.value.aspectRatio,
+                child: VideoPlayer(_videoController),
+              ),
+            )
+          else
+            Center(child: CircularProgressIndicator()), // Indicateur de chargement
+
+          Expanded(
+            child: Stack(
+              children: <Widget>[
+                Opacity(
+                  opacity: 0.9,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage('assets/images/background_concours.png'),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+                Column(
+                  children: <Widget>[
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _messages.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final message = _messages[index];
+                          final isUserMessage = message['role'] == 'user';
+                          return Container(
+                            color: isUserMessage ? Colors.blue[100] : Colors.green[100],
+                            margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                            padding: const EdgeInsets.all(8.0),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage: isUserMessage
+                                    ? (userProfilePhotoUrl != null
+                                    ? NetworkImage(userProfilePhotoUrl!)
+                                    : AssetImage('assets/images/default_user.png'))
+                                    : AssetImage('assets/images/system.png'),
+                                backgroundColor: Colors.grey,
+                              ),
+                              title: Text(
+                                message['content'],
+                                style: TextStyle(
+                                  fontWeight: isUserMessage ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                              subtitle: Text(isUserMessage ? 'Commercial'.tr() : 'Gérant'.tr()),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: TextField(
+                        controller: _controller,
+                        decoration: InputDecoration(
+                          hintText: 'Ou tapez votre message ici...'.tr(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          fillColor: Colors.white,
+                          filled: true,
+                        ),
+                        minLines: 1,
+                        maxLines: 5,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: Icon(Icons.spatial_audio_off_outlined,
+                        color: _isListening ? Colors.grey : Colors.white, size: 30),
+                    label: Text('Parler'.tr(),
+                        style: TextStyle(color: _isListening ? Colors.grey : Colors.white, fontSize: 20)),
+                    onPressed: _isListening ? _stopListening : _startListening,
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 15),
+                      backgroundColor: _isListening ? Colors.transparent : Colors.green,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: Icon(Icons.send, color: Colors.white, size: 30),
+                    label: Text('Valider'.tr(),
+                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      final value = _controller.text.trim();
+                      if (value.isNotEmpty) {
+                        _sendMessage(value);
+                        _controller.clear();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void endOfSimulation() async {
+    String report = generateInterviewReport();
+    await _saveInterviewReportToFirestore(report);
+    _showReportSavedConfirmation();
+  }
+
+  String generateInterviewReport() {
+    List<String> positives = [];
+    List<String> negatives = [];
+    Map<String, List<String>> improvements = {
+      'Introduction': [],
+      'Objections': [],
+      'Closing': []
+    };
+
+    _messages.forEach((message) {
+      String content = message['content'] as String;
+      if (message['role'] == 'assistant') {
+        if (content.contains("point fort") || content.contains("bien présenté")) {
+          positives.add(content);
+        } else if (content.contains("à améliorer") || content.contains("aurait été utile")) {
+          negatives.add(content);
+          if (content.contains("introduction")) {
+            improvements['Introduction']?.add(content);
+          } else if (content.contains("objection")) {
+            improvements['Objections']?.add(content);
+          } else if (content.contains("conclusion")) {
+            improvements['Closing']?.add(content);
+          }
+        }
+      }
+    });
+
+    String salesTechnique = getSalesTechnique(widget.chapterId);
+    String report = "Compte rendu de la simulation de vente pour : $salesTechnique.\n\n";
+
+    report += "Points Positifs:\n" + positives.join("\n") + "\n\n";
+    report += "Points à Améliorer:\n" + negatives.join("\n") + "\n\n";
+
+    if (improvements.isNotEmpty) {
+      report += "Détails des Améliorations:\n";
+      improvements.forEach((key, value) {
+        if (value.isNotEmpty) {
+          report += "$key:\n" + value.join("\n") + "\n";
+        }
+      });
+    }
+
+    report += "Merci d'avoir participé à cette simulation. Bonne continuation!\n";
+
+    return report;
+  }
+
+  Future<void> _saveInterviewReportToFirestore(String report) async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && report.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).set({
+          'interviewReport': report,
+          'timestamp': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e) {
+        print("Erreur lors de la sauvegarde du rapport : $e");
+      }
+    }
+  }
+
+  void _showReportSavedConfirmation() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Confirmation"),
+          content: Text("Le compte rendu de la simulation a été enregistré avec succès."),
+          actions: [
+            TextButton(
+              child: Text("OK"),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
