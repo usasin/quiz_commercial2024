@@ -6,7 +6,11 @@ inhibit_all_warnings!
 
 # Utiliser les dépendances Flutter
 flutter_application_path = File.expand_path('..', __FILE__)
-load File.expand_path('../.flutter-plugins-dependencies', __FILE__)
+unless File.exist?(File.join(flutter_application_path, '.flutter-plugins-dependencies'))
+  system('flutter pub get')
+end
+load File.join(flutter_application_path, '.flutter-plugins-dependencies')
+
 
 
 target 'Runner' do
