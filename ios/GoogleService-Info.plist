@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>163745254135-o8v7727knrjurjeg74mvajsa1b9dlmdl.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.163745254135-o8v7727knrjurjeg74mvajsa1b9dlmdl</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>163745254135-amqpopslt82uhar36s983dsov6o592qn.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyAPYfiUGMN-2ZpcqDax3VoQArcesFy4mPE</string>
+	<key>GCM_SENDER_ID</key>
+	<string>163745254135</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.quizcommercial2024.quizCommercial2024</string>
+	<key>PROJECT_ID</key>
+	<string>quiz-commercial</string>
+	<key>STORAGE_BUCKET</key>
+	<string>quiz-commercial.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:163745254135:ios:349c87d8e346624e3461f2</string>
+	<key>DATABASE_URL</key>
+	<string>https://quiz-commercial-default-rtdb.europe-west1.firebasedatabase.app</string>
+</dict>
+</plist>

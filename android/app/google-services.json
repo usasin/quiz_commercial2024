@@ -1,0 +1,71 @@
+{
+  "project_info": {
+    "project_number": "163745254135",
+    "firebase_url": "https://quiz-commercial-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "quiz-commercial",
+    "storage_bucket": "quiz-commercial.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:163745254135:android:ff4915f8ef3afd493461f2",
+        "android_client_info": {
+          "package_name": "com.quiz_commercial2024.quiz_commercial2024"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "163745254135-amqpopslt82uhar36s983dsov6o592qn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.quiz_commercial2024.quiz_commercial2024",
+            "certificate_hash": "52eac395c76d7b0b0990630261fa9e184590052a"
+          }
+        },
+        {
+          "client_id": "163745254135-q5g61o2dkkopb1ue7pl6scsp2dk9its8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.quiz_commercial2024.quiz_commercial2024",
+            "certificate_hash": "9f0cce9c6cd23b710cfdd75f5738d5b4da49c9cd"
+          }
+        },
+        {
+          "client_id": "163745254135-rk8oh0sib573dik5k0lhloop9hng7bip.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.quiz_commercial2024.quiz_commercial2024",
+            "certificate_hash": "49556de2f811c515db05e045c3104d54395aa492"
+          }
+        },
+        {
+          "client_id": "163745254135-r9dvocoq91o2n4ulg3milp30b1gkdvu5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0ygxn9vmbe2LE0akV-sQDdfFS4C1FGrg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "163745254135-r9dvocoq91o2n4ulg3milp30b1gkdvu5.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "163745254135-o8v7727knrjurjeg74mvajsa1b9dlmdl.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.quizcommercial2024.quizCommercial2024"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
