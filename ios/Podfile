@@ -1,26 +1,9 @@
-# Insérez ceci en haut de votre Podfile
 flutter_export_environment = File.expand_path('Flutter/flutter_export_environment.sh', __dir__)
 if File.exist?(flutter_export_environment)
+  puts "flutter_export_environment.sh trouvé"
   require flutter_export_environment
 else
-  puts "flutter_export_environment.sh n'existe pas, création d'un fichier temporaire."
-  File.write(flutter_export_environment, "")
-end
-
-require File.expand_path('../Flutter/podhelper.rb', __FILE__)
-
-# Insérez la plateforme cible pour iOS
-platform :ios, '13.0'
-
-# Ignorer les avertissements de Flutter
-inhibit_all_warnings!
-
-# Définir la cible principale
-target 'Runner' do
-  use_frameworks!
-  use_modular_headers!
-
-  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  puts "flutter_export_environment.sh NON TROUVÉ"
 end
 
 
