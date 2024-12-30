@@ -2,6 +2,9 @@
 flutter_export_environment = File.expand_path('Flutter/flutter_export_environment.sh', __dir__)
 if File.exist?(flutter_export_environment)
   require flutter_export_environment
+else
+  puts "flutter_export_environment.sh n'existe pas, création d'un fichier temporaire."
+  File.write(flutter_export_environment, "")
 end
 
 require File.expand_path('../Flutter/podhelper.rb', __FILE__)
@@ -19,5 +22,6 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
+
 
 
