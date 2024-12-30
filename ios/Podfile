@@ -10,11 +10,10 @@ platform :ios, '13.0'
 inhibit_all_warnings!
 
 # Utiliser les dépendances Flutter
-flutter_application_path = File.expand_path('..', __FILE__)
-unless File.exist?(File.join(flutter_application_path, '.flutter-plugins-dependencies'))
-  system('flutter pub get')
+flutter_export_environment = File.expand_path('Flutter/flutter_export_environment.sh', __dir__)
+if File.exist?(flutter_export_environment)
+  require flutter_export_environment
 end
-load File.join(flutter_application_path, '.flutter-plugins-dependencies')
 
 target 'Runner' do
   use_frameworks!
