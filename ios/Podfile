@@ -1,3 +1,6 @@
+# Insérez ceci en haut de votre Podfile
+workspace 'Runner.xcworkspace'
+
 flutter_export_environment = File.expand_path('Flutter/flutter_export_environment.sh', __dir__)
 
 if File.exist?(flutter_export_environment)
@@ -6,6 +9,19 @@ if File.exist?(flutter_export_environment)
 else
   puts "flutter_export_environment.sh introuvable"
 end
+
+platform :ios, '13.0'
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+# Ajoutez cette ligne avant la fin du fichier
+pod 'AFNetworking', '~> 4.0'
+
+
 
 
 
