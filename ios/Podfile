@@ -1,10 +1,13 @@
 flutter_export_environment = File.expand_path('Flutter/flutter_export_environment.sh', __dir__)
+
 if File.exist?(flutter_export_environment)
   puts "flutter_export_environment.sh trouvé"
-  require flutter_export_environment
+  system(". #{flutter_export_environment}")
 else
-  puts "flutter_export_environment.sh NON TROUVÉ"
+  puts "flutter_export_environment.sh introuvable"
 end
+
+
 
 
 
