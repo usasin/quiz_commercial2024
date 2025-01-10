@@ -1,7 +1,5 @@
-# Uncomment the next line to define a global platform for your project
 platform :ios, '12.0'
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
@@ -10,24 +8,18 @@ project 'Runner', {
   'Release' => :release,
 }
 
-def flutter_install_ios_plugin_pods(ios_application_path = nil)
-  flutter_root = File.expand_path('..', ios_application_path || File.dirname(File.realpath(__FILE__)))
-  load File.join(flutter_root, 'packages', 'flutter_tools', 'bin', 'podhelper.rb')
-end
+flutter_application_path = File.expand_path('..', __dir__)
+load File.join(flutter_application_path, '.ios', 'Flutter', 'podhelper.rb')
 
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
-  flutter_install_ios_plugin_pods(File.dirname(File.realpath(__FILE__)))
-
-  # Add this line to include audio_session
-  pod 'audio_session', '~> 0.1.23'
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
   target 'RunnerTests' do
     inherit! :search_paths
   end
-
 end
 
 post_install do |installer|
@@ -35,6 +27,7 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
   end
 end
+
 
 
 
