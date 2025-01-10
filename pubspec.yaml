@@ -2,7 +2,7 @@ name: quiz_commercial2024
 description: A new Flutter project.
 publish_to: 'none'
 
-version: 1.0.0+22
+version: 1.0.0+24
 
 environment:
   sdk: '>=3.4.1 <4.0.0'
@@ -33,7 +33,7 @@ dependencies:
   url_launcher: ^6.3.1
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.1
-
+  audio_session: ^0.1.23
 
 
 dev_dependencies:
