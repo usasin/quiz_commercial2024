@@ -1,25 +1,41 @@
-# Podfile
-workspace 'Runner.xcworkspace'
+# Uncomment the next line to define a global platform for your project
+platform :ios, '12.0'
 
-flutter_export_environment = File.expand_path('Flutter/flutter_export_environment.sh', __dir__)
-if File.exist?(flutter_export_environment)
-  puts "flutter_export_environment.sh trouvé"
-  system(". #{flutter_export_environment}")
-else
-  puts "flutter_export_environment.sh introuvable"
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_install_ios_plugin_pods(ios_application_path = nil)
+  flutter_root = File.expand_path('..', ios_application_path || File.dirname(File.realpath(__FILE__)))
+  load File.join(flutter_root, 'packages', 'flutter_tools', 'bin', 'podhelper.rb')
 end
-
-platform :ios, '13.0'
 
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
-  # Inclure le fichier podhelper.rb
-  require File.expand_path('Flutter/podhelper.rb', __dir__)
-  flutter_install_all_ios_pods(File.dirname(File.realpath(__FILE__)))
+  flutter_install_ios_plugin_pods(File.dirname(File.realpath(__FILE__)))
+
+  # Add this line to include audio_session
+  pod 'audio_session', '~> 0.1.23'
+
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
 
 end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
+end
+
 
 
 
