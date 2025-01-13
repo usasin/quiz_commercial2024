@@ -15,6 +15,7 @@ project 'Runner', {
 flutter_application_path = File.expand_path('..', __dir__)
 load File.join(flutter_application_path, '.ios', 'Flutter', 'podhelper.rb')
 
+
 # Définition de la cible principale
 target 'Runner' do
   # Utilisez les frameworks dynamiques et les en-têtes modulaires
