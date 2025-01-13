@@ -26,3 +26,4 @@ def flutter_install_all_ios_pods(installer)
     end
   end
 end
+
