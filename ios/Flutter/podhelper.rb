@@ -12,11 +12,18 @@ def flutter_root
 end
 
 def flutter_ios_podfile_setup
-  ios_application_path = File.expand_path(File.join(__dir__, '..', '..'))
-  File.expand_path(ios_application_path)
+  app_framework_dir = File.expand_path(File.join('..', '..', 'Flutter'), __dir__)
+  unless File.exist?(File.join(app_framework_dir, 'App.framework'))
+    raise "#{app_framework_dir}/App.framework must exist. If you're running pod install manually, make sure flutter build ios is executed first"
+  end
 end
 
 def flutter_install_all_ios_pods(installer)
   flutter_ios_podfile_setup
-  File.expand_path(File.join(installer, '..', 'Podfile'))
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+    end
+  end
 end
+
