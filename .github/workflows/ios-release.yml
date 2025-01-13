@@ -16,11 +16,14 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: stable
+          flutter-version: 3.24.5 # Spécifiez explicitement votre version Flutter
+          channel: stable
+          architecture: arm64
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Build iOS Release
         run: flutter build ios --release --no-codesign
+
 
