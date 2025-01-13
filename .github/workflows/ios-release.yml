@@ -10,17 +10,17 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-    - name: Set up Flutter
-  uses: subosito/flutter-action@v2
-  with:
-    flutter-version: '3.10.5'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable
 
+      - name: Install dependencies
+        run: flutter pub get
 
-    - name: Install dependencies
-      run: flutter pub get
+      - name: Build iOS Release
+        run: flutter build ios --release --no-codesign
 
-    - name: Build iOS Release
-      run: flutter build ios --release --no-codesign
