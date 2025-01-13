@@ -13,7 +13,8 @@ project 'Runner', {
 
 # Chemin vers l'application Flutter
 flutter_application_path = File.expand_path('..', __dir__)
-load File.join(flutter_application_path, '.ios', 'Flutter', 'podhelper.rb')
+load File.join(File.dirname(__FILE__), 'Flutter', 'podhelper.rb')
+
 
 
 # Définition de la cible principale
