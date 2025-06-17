@@ -25,7 +25,7 @@ jobs:
           # recrée le p12 et le provisioning profile
           printf '%s' "$CERT_BASE64"    | base64 -d > cert.p12
           printf '%s' "$PROFILE_BASE64" | base64 -d > profile.mobileprovision
-           echo "Runner MD5: $(md5sum cert.p12 | cut -d' ' -f1)"   # <── AJOUT
+           echo "Runner MD5: $(md5 -q cert.p12)"
           # supprime tout éventuel \r caché dans le mot de passe
           CLEAN_PASS=$(printf '%s' "$CERT_PASSWORD" | tr -d '\r')
 
