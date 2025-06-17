@@ -1,0 +1,29 @@
+name: Build iOS
+on: [push]
+
+jobs:
+  build:
+    runs-on: macos-14            # Xcode 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+      - run: flutter clean
+      - run: flutter pub get
+
+      - name: Install codesign files
+        run: |
+          echo "$CERT_BASE64"    | base64 -d > cert.p12
+          echo "$PROFILE_BASE64" | base64 -d > profile.mobileprovision
+          security import cert.p12 -P "$CERT_PASSWORD" -A
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+        env:
+          CERT_BASE64:    ${{ secrets.CERT_BASE64 }}
+          PROFILE_BASE64: ${{ secrets.PROFILE_BASE64 }}
+          CERT_PASSWORD:  ${{ secrets.CERT_PASSWORD }}
+
+      - run: flutter build ipa --release     # signature automatique
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-release
+          path: build/ios/ipa
