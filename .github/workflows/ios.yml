@@ -12,7 +12,6 @@ jobs:
       # 2. Installation de Flutter
       - uses: subosito/flutter-action@v2
         with:
-          # optionnel : channel: "stable"
           cache: true
 
       # 3. Préparation Flutter
@@ -22,27 +21,38 @@ jobs:
       # 4. Import des fichiers de signature
       - name: Install codesign files
         run: |
-          # recrée le p12 et le provisioning profile
+          # 4.1 Recrée le p12 et le provisioning profile
           printf '%s' "$CERT_BASE64"    | base64 -d > cert.p12
           printf '%s' "$PROFILE_BASE64" | base64 -d > profile.mobileprovision
-           echo "Runner MD5: $(md5 -q cert.p12)"
-          # supprime tout éventuel \r caché dans le mot de passe
+
+          # 4.2 Debug MD5
+          echo "Runner MD5: $(md5 -q cert.p12)"
+
+          # 4.3 Nettoie le mot de passe de tout \r éventuel
           CLEAN_PASS=$(printf '%s' "$CERT_PASSWORD" | tr -d '\r')
 
-          # import du certificat (ajout aux trousseaux système + login)
+          # 4.4 Importe le certificat dans le trousseau système
           security import cert.p12 -P "$CLEAN_PASS" -A
+          # autorise codesign à accéder à la clé sans prompt
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$CLEAN_PASS" ~/Library/Keychains/login.keychain-db
 
-          # place le provisioning profile au bon endroit
+          # 4.5 Installe le provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
         env:
           CERT_BASE64:    ${{ secrets.CERT_BASE64 }}
           PROFILE_BASE64: ${{ secrets.PROFILE_BASE64 }}
           CERT_PASSWORD:  ${{ secrets.CERT_PASSWORD }}
 
-      # 5. Compilation et signature de l’IPA
+      # 5. Compilation et signature de l’IPA pour l’App Store
       - name: Flutter build (ipa)
-        run: flutter build ipa --release      # <-- plus de --no-codesign
+        run: |
+          flutter build ipa \
+            --release \
+            --export-options-plist=ios/ExportOptions.plist
 
       # 6. Export du résultat
       - uses: actions/upload-artifact@v4
