@@ -1,754 +1,686 @@
-import 'package:easy_localization/easy_localization.dart';
+// lib/screens/simulation_screen.dart
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';                       // ← nouveau
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_sound/flutter_sound.dart';
 import 'package:lottie/lottie.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:auto_size_text/auto_size_text.dart';
+
 import '../services/gpt_service.dart';
+import '../rotating_glow_border.dart';
+import '../animated_gradient_button.dart';
 import 'compte_rendu_screen.dart';
+import 'levels_page.dart';
 
-enum SalesStep {
-  Introduction,
-  Motivation,
-  CurrentSituation,
-  Pain,
-  DesiredSituation,
-  OurSolution,
-  Objections,
-  Validation,
-  Recap,
-  Closing,
-}
-
-class Simulation extends StatefulWidget {
+class SimulationScreen extends StatefulWidget {
   final String chapterId;
-  Simulation({required this.chapterId});
+  final bool guided; // true = Mode Apprenant
+
+  const SimulationScreen({
+    required this.chapterId,
+    this.guided = true,
+    Key? key,
+  }) : super(key: key);
+
+  const SimulationScreen.free({required String chapterId, Key? key})
+      : this(chapterId: chapterId, guided: false, key: key);
 
   @override
-  _SimulationState createState() => _SimulationState();
+  State<SimulationScreen> createState() => _SimulationScreenState();
 }
 
-class _SimulationState extends State<Simulation> {
-  final TextEditingController _controller = TextEditingController();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  bool isRecruiterSpeaking = false;
-  final GptService _gptService = GptService(); // Réinclusion du service GPT
-  final FlutterTts flutterTts = FlutterTts();
-  final stt.SpeechToText speech = stt.SpeechToText();
-  String? salesScript;
-  bool _isListening = false;
-// Ajout pour gérer l'état de validation
-  Duration maxSilence = Duration(seconds: 30); // Temps maximum de silence autorisé
-  String? userProfilePhotoUrl;
-  List<int> loadingMessages = []; // Stocke les index des messages en cours de chargement
-  final ScrollController _scrollController = ScrollController();
-  bool isSpeaking = false; // Variable pour gérer l'état de la parole
+class _SimulationScreenState extends State<SimulationScreen> {
+  /* ─── Services ─── */
+  final _gpt = GptService();
+  final _recorder = FlutterSoundRecorder();
+  final _player = AudioPlayer();
+  final _scroller = ScrollController();
+  final _inputCtl = TextEditingController();
 
+  /* ─── États ─── */
+  bool _recInit = false;
+  bool _recording = false;
+  bool _speaking = false;
+  bool _savingReport = false;
+
+  /* ─── Script ─── */
+  String chapterTitle = '';
+  String aiRole = '';
+  List<dynamic> stepList = [];
+  int _currentStep = 0;
+  late List<String> _stepStatus; // pending | correct | partial | missing
+  late List<int> _attempts;
+
+  /* ─── Prospect aléatoire ─── */
+  final _rng = Random();             // ← nouveau
+  String _prospectPersona = '';      // ← nouveau
+
+  /* ─── Historique chat ─── */
+  final _messages = <Map<String, String>>[];
+
+  /* ═════════ INIT ═════════ */
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      String currentLanguage = context.locale.languageCode;
-      _configureTts(currentLanguage);
-      _speakInitialRecruiterMessage();
-    });
-    _initializeSalesScript();
-    flutterTts.setStartHandler(() {
-      setState(() {
-        isRecruiterSpeaking = true;
-      });
-    });
-
-    flutterTts.setCompletionHandler(() {
-      setState(() {
-        isRecruiterSpeaking = false;
-      });
-    });
-
-    // Récupérer la photo de profil de l'utilisateur
-    _loadUserProfile();
+    _initRecorder();
+    _loadChapter().then((_) => _welcome());
   }
 
-
-  Future<void> _loadUserProfile() async {
-    User? currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null && currentUser.photoURL != null) {
-      setState(() {
-        userProfilePhotoUrl = currentUser.photoURL;
-      });
+  Future<void> _initRecorder() async {
+    if (await Permission.microphone.request().isGranted) {
+      await _recorder.openRecorder();
+      _recInit = true;
     }
   }
 
-  Future<void> _initializeSalesScript() async {
-    String scriptId = widget.chapterId;
-    DocumentSnapshot doc = await FirebaseFirestore.instance.collection('scripts').doc(scriptId).get();
+  Future<void> _loadChapter() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('chapters')
+        .doc(widget.chapterId)
+        .get();
 
-    if (doc.exists && doc.data() != null) {
+    final fileName = doc.data()?['scriptFile'] ?? '${widget.chapterId}.json';
+    final path = 'assets/scripts/$fileName';
+
+    try {
+      final jsonStr = await rootBundle.loadString(path);
+      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+      stepList = (data['steps'] as List<dynamic>?) ?? [];
+      if (stepList.isEmpty) {
+        stepList = [
+          {'id': 'Libre', 'goal': 'Répondre librement', 'mustSay': []}
+        ];
+      }
+
+      // ----------- nouveau : choisir un profil prospect -----------
+      final profiles = (data['prospectProfiles'] as List<dynamic>?) ?? [];
+      if (profiles.isNotEmpty) {
+        _prospectPersona = profiles[_rng.nextInt(profiles.length)];
+      } else {
+        _prospectPersona = "Vous hésitez encore pour des raisons personnelles.";
+      }
+      // ------------------------------------------------------------
+
       setState(() {
-        salesScript = doc['sales_script'] ?? '';  // Vérifier si le script existe
+        chapterTitle = data['title'] ?? 'Script';
+        aiRole = data['aiRole'] ?? 'le prospect';
+        _stepStatus = List.filled(stepList.length, 'pending');
+        _attempts = List.filled(stepList.length, 0);
       });
-    } else {
-      print("Le script pour ce chapitre n'existe pas.");
+    } catch (_) {
+      setState(() {
+        chapterTitle = 'Script introuvable';
+        stepList = [
+          {'id': 'Libre', 'goal': 'Répondre librement', 'mustSay': []}
+        ];
+        _stepStatus = ['pending'];
+        _attempts = [0];
+        _prospectPersona =
+        "Vous hésitez encore pour des raisons personnelles."; // valeur de secours
+      });
     }
   }
-
-  String getSalesTechnique(String chapterId) {
-    switch (chapterId) {
-      case 'chapter1':
-        return "Vente Directe (Porte-à-Porte, One-Shot)";
-      case 'chapter2':
-        return "Setting & Closing à Vente Distance";
-      case 'chapter3':
-        return "La Vente en GMS";
-      case 'chapter4':
-        return "Commercial en Immobilier";
-      case 'chapter5':
-        return "La Vente Consultative";
-      case 'chapter6':
-        return "Responsable Commercial / Manager Commercial";
-      case 'chapter7':
-        return "Commerciaux High Ticket (Ventes à Haute Valeur)";
-      case 'chapter8':
-        return "Marketing Digital et Community Management";
-      default:
-        return "technique de vente non spécifiée";
+/* ═════════ PROMPT ═════════ */
+  /// Construit le prompt système envoyé à OpenAI.
+  /// - Mode LIBRE : le modèle n’incarne que le prospect.
+  /// - Mode APPRENANT : le modèle incarne le prospect **et** un Coach formateur
+  ///   qui vérifie les mots-clés obligatoires et corrige le commercial.
+  String _systemPrompt() {
+    /* ─── MODE LIBRE ─── */
+    if (!widget.guided) {
+      return '''
+Tu es **${aiRole.toLowerCase()}**.  
+Profil du prospect : $_prospectPersona  
+Mode LIBRE : réagis comme un client réel, intéressé mais encore indécis ; exprime tes doutes, pose des questions.  
+Si tu es convaincu, signe ou propose un rendez-vous.  
+Pas de conseils ni d’évaluation.
+''';
     }
+
+    /* ─── MODE APPRENANT ─── */
+    final step       = stepList[_currentStep];
+    final keywords   = (step['mustSay'] as List).join(", ");
+    final tentatives = _attempts[_currentStep] + 1;
+    final aide       = switch (tentatives) {
+      2 => 'Donne un indice pratique (ex. poser une question suggestive).',
+      3 => 'Propose une phrase exemple complète qui intègre les mots-clés manquants.',
+      _ => ''
+    };
+
+    return '''
+Ton objectif : aider le commercial à réussir **chaque étape** du script.
+
+**Règles Coach :**
+• Après CHAQUE réponse du commercial, vérifie si TOUS les mots-clés obligatoires de l’étape sont présents  
+  → Mots-clés attendus : $keywords  
+• Fais un retour en 2 phrases maxi :  
+  1) Feedback positif ou neutre + ce qui manque ➜ liste claire des mots-clés absents.  
+  2) Suggestion concrète pour corriger (reformulation ou question à poser).  
+• Termine toujours par l’emoji ✅ (tous mots-clés OK) ou ⚠️ (il en manque) ou ❌ (hors sujet).  
+• Si ⚠️ ou ❌ : invite le commercial à recommencer ET $aide
+
+**Rôle prospect (${aiRole.toLowerCase()})** :  
+Réponds de façon réaliste, intéressé mais indécis, cohérente avec le **profil aléatoire** : $_prospectPersona  
+Si le commercial couvre bien les besoins et répond aux objections : accepte de conclure ou fixe un rendez-vous clair.
+
+Réponds toujours en français.  
+Indique la partie Coach **entre parenthèses** à la fin de ta réponse.
+Étape en cours : « ${step['id']} » – Objectif : ${step['goal']}.
+''';
   }
 
-  Future<void> _speakInitialRecruiterMessage() async {
-    String salesTechnique = getSalesTechnique(widget.chapterId);
-    String message = "Bienvenue dans le Mode Libre de la simulation de $salesTechnique. "
-        "Dans ce mode, l'IA ne vous guidera pas, mais vous passerez à travers chaque étape du processus de vente. "
-        "À la fin, un compte rendu sera généré. Appuyez sur 'Parler' ou tapez vos réponses pour interagir.".tr();
-    await flutterTts.speak(message);
+
+  /* ═════════ ENREGISTREMENT ═════════ */
+  Future<void> _startRec() async {
+    if (!_recInit) return;
+    final dir = await getTemporaryDirectory();
+    final path =
+        '${dir.path}/speech_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    await _recorder.startRecorder(
+        toFile: path, codec: Codec.aacMP4, sampleRate: 16000, numChannels: 1);
+    setState(() => _recording = true);
   }
 
-  void _configureTts(String languageCode) async {
-    await flutterTts.setLanguage(languageCode); // Définit la langue
-    await flutterTts.setPitch(1.0); // Définit le ton
-    await flutterTts.setSpeechRate(0.6); // Définit la vitesse de parole
-    await flutterTts.setVolume(1.0); // Définit le volume au maximum
+  Future<void> _stopRec() async {
+    final path = await _recorder.stopRecorder();
+    setState(() => _recording = false);
+    if (path == null) return;
 
-    // (Optionnel) Configure une voix spécifique
-    List<dynamic>? voices = await flutterTts.getVoices;
-    dynamic voice = voices?.firstWhere(
-          (v) => v['locale'] == languageCode,
-      orElse: () => null,
+    final file = File(path);
+    if (file.lengthSync() == 0) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
-    if (voice != null) {
-      await flutterTts.setVoice(voice); // Définit une voix spécifique si disponible
-    } else {
-      print("Aucune voix spécifique trouvée pour la langue $languageCode");
+    try {
+      final txt = await _gpt.transcribeAudio(file);
+      if (!mounted) return;
+      Navigator.pop(context);
+      _sendUser(txt);
+    } catch (e) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Transcription KO : $e')));
     }
   }
 
+  /* ═════════ CHAT ═════════ */
+  void _sendUser(String content) {
+    _messages.add({'role': 'user', 'content': content});
+    setState(() {});
+    _scroll();
+    _callGPT();
+  }
 
-  final List<Map<String, dynamic>> _messages = [
-    {
-      "role": "system",
-      'content': "Bienvenue dans le Mode Libre de la simulation. Vous suivrez toutes les étapes de vente, de l'introduction à la conclusion. À la fin, un rapport sera généré.".tr()
-    },
-  ];
+  Future<void> _callGPT() async {
+    final apiMsgs = _messages
+        .map((m) => {
+      'role': m['role'] == 'user' ? 'user' : 'assistant',
+      'content': m['content']!
+    })
+        .toList();
 
-  void _sendMessage(String content) async {
-    setState(() {
-      _messages.add({
-        'role': 'user',
-        'content': content,
-      });
-    });
-
+    late String raw;
     try {
-      String contextPrompt = """
-    Vous êtes un gérant dans une simulation de vente. 
-    - **Répondez de manière simple et directe** aux questions du commercial.
-    - Pour les **questions fermées** ou très spécifiques (par exemple, 'Quel est votre prénom ?'), répondez uniquement avec l'information demandée sans poser de questions supplémentaires.
-    - Pour les **questions ouvertes** ou lorsque le commercial invite à une discussion (par exemple, 'Quelles sont vos priorités ?'), donnez une réponse plus détaillée et posez une question en retour si cela est pertinent pour approfondir la conversation.
-    - Gardez un ton amical et professionnel.
-    """;
-
-      final combinedScript = "$contextPrompt\n$salesScript";
-
-      final response = await _gptService.generateTextBasedOnSalesScript(_messages, combinedScript);
-      _addRecruiterQuestion(response);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur lors de la génération de la réponse de l'IA.")),
+      raw = await _gpt.generateText(
+        [
+          {'role': 'system', 'content': _systemPrompt()},
+          ...apiMsgs
+        ],
+        model: 'gpt-4o-mini',
       );
-    }
-  }
-
-  Future<String> generateTrainingReport() async {
-    try {
-      // Construisez un prompt basé sur les interactions utilisateur et assistant
-      String trainingPrompt = """
-    Vous êtes un formateur en vente. Analysez les interactions suivantes entre le commercial et le gérant :
-    - Identifiez les **points positifs**.
-    - Soulignez les **axes d'amélioration**.
-    - Fournissez des **recommandations claires** pour progresser.
-
-    Interactions :
-    ${_messages.map((m) => "${m['role']}: ${m['content']}").join("\n")}
-    """;
-
-      // Appel API pour générer le rapport
-      final report = await _gptService.generateText([
-        {'role': 'system', 'content': 'Agissez en tant que formateur.'},
-        {'role': 'user', 'content': trainingPrompt},
-      ]);
-
-      return report;
     } catch (e) {
-      print("Erreur lors de la génération du compte rendu : $e");
-      return "Erreur lors de la génération du compte rendu.";
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Erreur GPT : $e')));
+      return;
+    }
+
+    // 2) split prospect / coach
+    String prospect = raw, coach = '';
+    if (widget.guided) {
+      final m = RegExp(r'\((.*?)\)$', dotAll: true).firstMatch(raw);
+      if (m != null) {
+        prospect = raw.replaceFirst(m.group(0)!, '').trim();
+        coach = m.group(1)!.trim();
+      }
+    }
+
+    _messages.add({'role': 'assistant-prospect', 'content': prospect});
+    if (coach.isNotEmpty) {
+      _messages.add({'role': 'assistant-coach', 'content': coach});
+    }
+
+    // 3) marqueur
+    String marker = '';
+    if (coach.contains('✅')) {
+      marker = 'correct';
+    } else if (coach.contains('⚠️')) {
+      marker = 'partial';
+    } else if (coach.contains('❌')) {
+      marker = 'missing';
+    }
+    if (widget.guided && marker.isNotEmpty) {
+      _stepStatus[_currentStep] = marker;
+    }
+
+    setState(() {});
+    _scroll();
+    _tts(raw);
+
+    // 4) progression & auto-save
+    if (widget.guided) {
+      if (marker == 'correct') {
+        await _autoSave();
+        if (_currentStep < stepList.length - 1) {
+          setState(() => _currentStep++);
+        }
+      } else if (marker.isNotEmpty) {
+        _attempts[_currentStep]++;
+      }
     }
   }
 
+  /* ═════════ AUTO-SAVE ═════════ */
+  Future<void> _autoSave() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final statusField = widget.guided ? 'stepStatusGuide' : 'stepStatusLibre';
 
-
-
-  void _addRecruiterQuestion(String question) async {
-    setState(() {
-      _messages.add({
-        'role': 'assistant',
-        'content': question, // Affiche immédiatement le texte
-      });
-    });
-
-    _scrollToBottom(); // Scrollez automatiquement vers le bas
-
-    // Parle le message et garde Lottie actif
-    await _speak(question);
-
-    _scrollToBottom(); // Scrollez à nouveau après la fin de la parole
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('chapters')
+        .doc(widget.chapterId)
+        .set({statusField: _stepStatus}, SetOptions(merge: true));
   }
 
+  /* ═════════ TTS ═════════ */
+  Future<void> _tts(String text) async {
+    setState(() => _speaking = true);
+    final f = await _gpt.synthesizeSpeech(text);
+    await _player.play(DeviceFileSource(f.path));
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _speaking = false);
+    });
+  }
 
-  void _scrollToBottom() {
-    Future.delayed(Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+  void _scroll() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroller.hasClients) {
+        _scroller.animateTo(_scroller.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       }
     });
   }
 
+  /* ═════════ WELCOME ═════════ */
+  void _welcome() {
+    final mode = widget.guided ? 'Mode Apprenant' : 'Mode Libre';
+    _messages.add({
+      'role': 'assistant-prospect',
+      'content':
+      'Bienvenue dans le $mode de la simulation « $chapterTitle ». Clique sur le micro pour parler.'
+    });
+    setState(() {});
+  }
 
+  /* ═════════ RAPPORT ═════════ */
+  Future<String> _evaluate() async {
+    final hist =
+    _messages.map((m) => "${m['role']}: ${m['content']}").join('\n');
+    try {
+      return await _gpt.generateText([
+        {
+          'role': 'system',
+          'content':
+          'Tu es un formateur. Pour chaque étape indique ✅/⚠️/❌ et donne 3 conseils.'
+        },
+        {'role': 'user', 'content': hist},
+      ]);
+    } catch (e) {
+      return 'Erreur analyse : $e';
+    }
+  }
 
-  Future<void> _startListening() async {
-    bool available = await speech.initialize(
-      onStatus: (status) {
-        if (status == 'listening') {
-          setState(() {
-            _isListening = true;
-          });
-        }
-      },
-      onError: (error) => print('onError: $error'),
+  Future<void> _saveReport() async {
+    setState(() => _savingReport = true);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
-    if (available) {
-      speech.listen(
-        listenFor: Duration(minutes: 1), // Délai d'écoute maximal
-        pauseFor: Duration(minutes: 1),  // Délai d'inactivité avant arrêt augmenté au maximum
-        onResult: (result) {
-          _controller.text = result.recognizedWords;
-        },
-      );
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      Navigator.pop(context);
+      setState(() => _savingReport = false);
+      return;
     }
+    final report = await _evaluate();
+
+    final reportField = widget.guided ? 'learningReport' : 'interviewReport';
+    final statusField = widget.guided ? 'stepStatusGuide' : 'stepStatusLibre';
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('chapters')
+        .doc(widget.chapterId)
+        .set({
+      reportField: report,
+      statusField: _stepStatus,
+      'messages': _messages,
+      'timestamp': FieldValue.serverTimestamp(),
+      'prospectPersona': _prospectPersona,   // ← facultatif : sauvegarde
+    }, SetOptions(merge: true));
+
+    if (!mounted) return;
+    Navigator.pop(context); // close loading dialog
+    setState(() => _savingReport = false);
+
+    Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+            builder: (_) =>
+                CompteRenduScreen(chapterId: widget.chapterId)));
   }
 
-
-  void _stopListening() {
-    speech.stop();
-    setState(() {
-      _isListening = false;
-    });
-  }
+  /* ═════════ UI ═════════ */
+  String get _modeLabel => widget.guided ? 'Mode Apprenant' : 'Mode Libre';
 
   @override
-  void dispose() {
-    _scrollController.dispose();
-    flutterTts.stop();
-    speech.stop();
-    super.dispose();
-  }
+  Widget build(BuildContext context) => Scaffold(
+    resizeToAvoidBottomInset: true,
+    body: SafeArea(
+      child: Column(children: [
+        _header(),
+        Expanded(child: _chat()),
+      ]),
+    ),
+    bottomNavigationBar: _bottom(),
+  );
 
+  Widget _header() => Container(
+    padding: const EdgeInsets.all(16),
+    color: Colors.white,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        AutoSizeText(
+          chapterTitle,
+          style:
+          const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          maxLines: 1,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        AutoSizeText(
+          _modeLabel,
+          style: const TextStyle(
+              fontSize: 14,
+              fontStyle: FontStyle.italic,
+              color: Colors.grey),
+          maxLines: 1,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        if (widget.guided) _timeline(),
+        const SizedBox(height: 8),
+        const Text(
+          'Cliquez sur « Terminer » pour générer votre compte-rendu.',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedGradientButton(
+              child: Row(
+                children: [
+                  const Icon(Icons.done, color: Colors.white),
+                  const SizedBox(width: 6),
+                  AutoSizeText(
+                    'Terminer',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                  ),
+                ],
+              ),
+              onTap: _savingReport ? null : _saveReport,
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.exit_to_app),
+              label: const AutoSizeText('Quitter', maxLines: 1),
+              onPressed: () => Navigator.pushReplacement(context,
+                  MaterialPageRoute(builder: (_) => const LevelsPage())),
+            ),
+          ],
+        )
+      ],
+    ),
+  );
 
-
-
-  Future<void> _speak(String text) async {
-    try {
-      // Active l'animation Lottie
-      setState(() {
-        isSpeaking = true;
-      });
-
-      // Gestionnaires pour activer/désactiver Lottie
-      flutterTts.setStartHandler(() {
-        setState(() {
-          isSpeaking = true;
-        });
-      });
-
-      flutterTts.setCompletionHandler(() {
-        setState(() {
-          isSpeaking = false; // Désactive l'animation à la fin de la parole
-        });
-      });
-
-      flutterTts.setErrorHandler((msg) {
-        setState(() {
-          isSpeaking = false; // Désactive également en cas d'erreur
-        });
-      });
-
-      await flutterTts.speak(text); // Commence la parole
-    } catch (e) {
-      print("Erreur lors de la lecture du texte : $e");
-      setState(() {
-        isSpeaking = false; // Assurez-vous de désactiver en cas d'erreur
-      });
-    }
-  }
-
-
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      body: Stack(
-        children: [
-          Column(
-            children: <Widget>[
-              // En-tête
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 20), // Espacement horizontal pour le conteneur
-                color: Colors.white70, // Fond blanc cassé pour le conteneur
-                child: Column(
-                  children: [
-                    SizedBox(height: 50), // Espace pour descendre le bouton
-                    ElevatedButton.icon(
-                      icon: Icon(Icons.ads_click, color: Colors.orangeAccent, size: 24), // Icône du bouton
-                      label: Text(
-                        'Clic Terminer'.tr(), // Texte du bouton
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.blue.shade800, // Couleur du texte
-                          fontWeight: FontWeight.bold, // Mettre en gras pour renforcer le style
-                        ),
-                      ),
-                      onPressed: () {
-                        _showExitConfirmationDialog(); // Appelle la méthode pour afficher le dialogue
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.brown.shade50, // Couleur de fond du bouton
-                        shadowColor: Colors.brown.shade200, // Couleur de l'ombre pour l'effet 3D
-                        elevation: 10, // Élévation pour créer de la profondeur
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15), // Coins arrondis pour un style moderne
-                        ),
-                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16), // Espacement interne
-                      ),
-                    ),
-                  ],
+  Widget _timeline() => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      children: List.generate(stepList.length, (i) {
+        Color c;
+        String txt;
+        switch (_stepStatus[i]) {
+          case 'correct':
+            c = Colors.green;
+            txt = '✓';
+            break;
+          case 'partial':
+            c = Colors.orange;
+            txt = '⚠️';
+            break;
+          case 'missing':
+            c = Colors.red;
+            txt = '✗';
+            break;
+          default:
+            c = Colors.grey;
+            txt = '${i + 1}';
+        }
+        return Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: Column(
+            children: [
+              RotatingGlowBorder(
+                borderWidth: 3,
+                borderRadius: 8,
+                colors: [Colors.white, c, Colors.white],
+                duration: const Duration(seconds: 4),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: c.withOpacity(.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: c, width: 2),
+                  ),
+                  alignment: Alignment.center,
+                  child: AutoSizeText(
+                    txt,
+                    style: TextStyle(
+                        color: c,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14),
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
-
-
-
-
-              // Corps principal
-              Expanded(
-                child: Stack(
-                  children: <Widget>[
-                    // Fond d'écran
-                    Opacity(
-                      opacity: 0.9,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          image: DecorationImage(
-                            image: AssetImage('assets/images/background_concours.png'),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Liste des messages
-                    Column(
-                      children: <Widget>[
-                        Expanded(
-                          child: ListView.builder(
-                            controller: _scrollController, // Ajout du contrôleur
-                            itemCount: _messages.length,
-                            itemBuilder: (BuildContext context, int index) {
-                              final message = _messages[index];
-                              final isUserMessage = message['role'] == 'user';
-                              final isAssistantMessage = message['role'] == 'assistant';
-
-                              return Column(
-                                crossAxisAlignment: isUserMessage
-                                    ? CrossAxisAlignment.end
-                                    : CrossAxisAlignment.start,
-                                children: [
-                                  if (isAssistantMessage) ...[
-                                    // Affiche le texte immédiatement
-                                    Container(
-                                      color: Colors.green[100],
-                                      margin: const EdgeInsets.symmetric(
-                                          vertical: 4.0, horizontal: 8.0),
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: ListTile(
-                                        leading: CircleAvatar(
-                                          backgroundImage:
-                                          AssetImage('assets/images/system.png'),
-                                          backgroundColor: Colors.grey,
-                                        ),
-                                        title: Text(
-                                          message['content'],
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.normal,
-                                          ),
-                                        ),
-                                        subtitle: Text('Gérant'.tr()),
-                                      ),
-                                    ),
-                                  ],
-                                  if (isUserMessage)
-                                    Container(
-                                      color: Colors.blue[100],
-                                      margin: const EdgeInsets.symmetric(
-                                          vertical: 4.0, horizontal: 8.0),
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: ListTile(
-                                        leading: CircleAvatar(
-                                          backgroundImage: userProfilePhotoUrl != null
-                                              ? NetworkImage(userProfilePhotoUrl!)
-                                              : AssetImage(
-                                              'assets/images/default_user.png'),
-                                          backgroundColor: Colors.grey,
-                                        ),
-                                        title: Text(
-                                          message['content'],
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        subtitle: Text('Commercial'.tr()),
-                                      ),
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                        // Champ de texte
-                        Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: TextField(
-                            controller: _controller,
-                            decoration: InputDecoration(
-                              hintText: 'Ou tapez votre message ici...'.tr(),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              fillColor: Colors.white,
-                              filled: true,
-                            ),
-                            minLines: 1,
-                            maxLines: 5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Boutons
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        icon: Icon(
-                          Icons.mic,
-                          color: Colors.white, // L'icône reste blanche
-                          size: 30,
-                        ),
-                        label: Text(
-                          _isListening ? 'Stop'.tr() : 'Parler'.tr(), // Change le texte en fonction de l'état
-                          style: TextStyle(
-                            color: Colors.white, // Le texte reste blanc
-                            fontSize: 20,
-                          ),
-                        ),
-                        onPressed: () {
-                          if (_isListening) {
-                            _stopListening(); // Arrête l'écoute
-                          } else {
-                            _startListening(); // Démarre l'écoute
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 15),
-                          backgroundColor: _isListening
-                              ? Colors.red // Rouge pendant l'écoute
-                              : Colors.green, // Vert par défaut
-                        ),
-                      ),
-                    ),
-
-
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        icon: Icon(Icons.send, color: Colors.white, size: 30),
-                        label: Text(
-                          'Valider'.tr(),
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold),
-                        ),
-                        onPressed: () {
-                          final value = _controller.text.trim();
-                          if (value.isNotEmpty) {
-                            _sendMessage(value);
-                            _controller.clear();
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                        ),
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 48,
+                child: AutoSizeText(
+                  stepList[i]['id'],
+                  textAlign: TextAlign.center,
+                  style:
+                  const TextStyle(fontSize: 10, color: Colors.grey),
+                  maxLines: 2,
                 ),
               ),
             ],
           ),
-
-          // Animation Lottie en superposition au centre
-          if (isSpeaking)
-            Center(
-              child: Lottie.asset(
-                'assets/parler.json',
-                width: MediaQuery.of(context).size.width * 0.7, // 60% de la largeur
-                height: MediaQuery.of(context).size.width * 0.6, // Carré
-                repeat: true,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-
-  void endOfSimulation() async {
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Center(child: CircularProgressIndicator()),
-      );
-
-      // Appel à generateTrainingReport
-      String report = await generateTrainingReport();
-
-      // Sauvegarde dans Firestore
-      await _saveInterviewReportToFirestore(report);
-
-      // Fermer le dialogue de chargement
-      Navigator.pop(context);
-
-      // Naviguer vers l'écran de compte rendu
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CompteRenduScreen(
-            chapterId: widget.chapterId,
-
-          ),
-        ),
-      );
-    } catch (e) {
-      Navigator.pop(context);
-      print("Erreur dans endOfSimulation : $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Une erreur est survenue. Veuillez réessayer.")),
-      );
-    }
-  }
-
-
-
-
-  String generateInterviewReport() {
-    StringBuffer report = StringBuffer();
-
-    // Introduction
-    report.writeln("# Compte Rendu de la Simulation de Vente");
-    report.writeln("Voici une analyse détaillée de votre simulation :\n");
-
-    // Points positifs
-    report.writeln("## Points Positifs");
-    bool hasPositive = false;
-    for (var message in _messages) {
-      if (message['role'] == 'assistant' &&
-          message['content'].toLowerCase().contains("bien")) {
-        report.writeln("- ${message['content']}");
-        hasPositive = true;
-      }
-    }
-    if (!hasPositive) {
-      report.writeln("- Aucun point positif explicite trouvé, mais l’effort est visible !");
-    }
-
-    // Axes d’amélioration
-    report.writeln("\n## Axes d’Amélioration");
-    bool hasImprovement = false;
-    for (var message in _messages) {
-      if (message['role'] == 'assistant' &&
-          message['content'].toLowerCase().contains("problème")) {
-        report.writeln("- ${message['content']}");
-        hasImprovement = true;
-      }
-    }
-    if (!hasImprovement) {
-      report.writeln("- Aucun problème détecté, mais vous pouvez toujours affiner vos réponses.");
-    }
-
-    // Recommandations
-    report.writeln("\n## Recommandations de votre coach");
-    report.writeln("- Donnez des exemples plus spécifiques et concrets.");
-    report.writeln("- Posez des questions ouvertes pour explorer davantage les besoins du client.");
-    report.writeln("- Soyez précis et concis dans vos réponses.");
-
-    // Conclusion
-    report.writeln("\n## Conclusion");
-    report.writeln("Votre simulation est prometteuse. Continuez à travailler sur les axes identifiés pour exceller dans vos prochaines interactions.");
-
-    return report.toString();
-  }
-
-
-  Future<void> _saveInterviewReportToFirestore(String report) async {
-    User? currentUser = FirebaseAuth.instance.currentUser;
-
-    if (currentUser != null && report.isNotEmpty) {
-      try {
-        // Sauvegarder le rapport dans Firestore
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUser.uid)
-            .collection('chapters')
-            .doc(widget.chapterId)
-            .set({
-          'interviewReport': report, // Ajouter le compte rendu généré
-          'gptMessages': _messages,  // Ajouter les messages de la conversation
-          'timestamp': FieldValue.serverTimestamp(), // Ajouter une date pour le suivi
-        }, SetOptions(merge: true));
-
-        print("Rapport sauvegardé avec succès !");
-      } catch (e) {
-        print("Erreur lors de la sauvegarde du rapport : $e");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur lors de la sauvegarde du rapport.")),
         );
-      }
-    } else {
-      print("Utilisateur non connecté ou rapport vide.");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Impossible de sauvegarder : utilisateur non connecté ou rapport vide.")),
-      );
-    }
-  }
+      }),
+    ),
+  );
 
-
-
-  void _showExitConfirmationDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Terminer la simulation ?"),
-        content: Text(
-          "Voulez-vous terminer la simulation et générer un compte rendu ?",
+  Widget _chat() => Stack(children: [
+    Opacity(
+        opacity: 0.2,
+        child: Image.asset('assets/images/background_concours.png',
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity)),
+    Column(children: [
+      Expanded(
+          child: ListView.builder(
+              controller: _scroller,
+              itemCount: _messages.length,
+              itemBuilder: (_, i) {
+                final m = _messages[i];
+                final role = m['role'];
+                Alignment a;
+                Color col;
+                if (role == 'user') {
+                  a = Alignment.centerRight;
+                  col = Colors.blue[100]!;
+                } else if (role == 'assistant-prospect') {
+                  a = Alignment.centerLeft;
+                  col = Colors.green[100]!;
+                } else {
+                  a = Alignment.centerLeft;
+                  col = Colors.purple[100]!;
+                }
+                return Align(
+                  alignment: a,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: RotatingGlowBorder(
+                      borderWidth: 2,
+                      borderRadius: 12,
+                      colors: [
+                        Colors.white,
+                        col.withOpacity(0.6),
+                        Colors.white
+                      ],
+                      duration: const Duration(seconds: 5),
+                      child: Container(
+                        margin:
+                        const EdgeInsets.symmetric(horizontal: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                            color: col,
+                            borderRadius: BorderRadius.circular(12)),
+                        constraints:
+                        const BoxConstraints(maxWidth: 280),
+                        child: AutoSizeText(
+                          m['content'] ?? '',
+                          style: TextStyle(
+                              fontStyle: role == 'assistant-coach'
+                                  ? FontStyle.italic
+                                  : null),
+                          maxLines: 5,
+                          textAlign: TextAlign.left,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              })),
+      Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(children: [
+            Expanded(
+                child: TextField(
+                    controller: _inputCtl,
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: 'Tapez ici…'))),
+            IconButton(
+                icon: const Icon(Icons.send),
+                onPressed: () {
+                  final t = _inputCtl.text.trim();
+                  if (t.isNotEmpty) {
+                    _inputCtl.clear();
+                    _sendUser(t);
+                  }
+                })
+          ]))
+    ]),
+    if (_speaking)
+      Center(
+        child: Lottie.asset(
+          'assets/parler.json',
+          width: 220,
+          height: 200,
+          repeat: true,
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Fermer le dialogue
-            },
-            child: Text("Annuler"),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context); // Fermer le dialogue
-              await _generateAndSaveReport(); // Générer le rapport
-            },
-            child: Text("Confirmer"),
-          ),
-        ],
       ),
-    );
-  }
+  ]);
 
-  Future<void> _generateAndSaveReport() async {
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Center(child: CircularProgressIndicator()),
-      );
-
-      // Générer le compte rendu
-      final reportPrompt = """
-    Vous êtes un formateur en vente. Voici les interactions enregistrées :
-    ${_messages.map((m) => "${m['role']}: ${m['content']}").join("\n")}
-
-    Générer un compte rendu clair avec :
-    - Les points positifs
-    - Les axes d'amélioration
-    - Des recommandations pratiques.
-    """;
-
-      final report = await _gptService.generateText([
-        {'role': 'system', 'content': 'Générez un compte rendu structuré et détaillé basé sur ces interactions.'},
-        {'role': 'user', 'content': reportPrompt},
-      ]);
-
-      // Sauvegarder le rapport dans Firestore
-      await _saveInterviewReportToFirestore(report);
-
-      Navigator.pop(context);
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CompteRenduScreen(
-            chapterId: widget.chapterId,
-
+  Widget _bottom() => SafeArea(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: RotatingGlowBorder(
+        borderWidth: _recording ? 3 : 0,
+        borderRadius: 12,
+        colors: _recording
+            ? [Colors.white, Colors.greenAccent, Colors.white]
+            : [
+          Colors.transparent,
+          Colors.transparent,
+          Colors.transparent
+        ],
+        duration: const Duration(seconds: 3),
+        child: AnimatedGradientButton(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(_recording ? Icons.stop : Icons.mic,
+                  color: Colors.white, size: 28),
+              const SizedBox(width: 8),
+              AutoSizeText(
+                _recording ? 'Arrêter'.tr() : 'Parler'.tr(),
+                style: const TextStyle(fontSize: 18, color: Colors.white),
+                maxLines: 1,
+              ),
+            ],
           ),
+          onTap: _recording ? _stopRec : _startRec,
         ),
-      );
-    } catch (e) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur lors de la génération du compte rendu.")),
-      );
-    }
+      ),
+    ),
+  );
+
+  @override
+  void dispose() {
+    _recorder.closeRecorder();
+    _scroller.dispose();
+    _player.dispose();
+    _inputCtl.dispose();
+    super.dispose();
   }
-
-
-
-
-
 }

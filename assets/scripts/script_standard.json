@@ -1,0 +1,23 @@
+{
+  "title": "Script Standard",
+  "sector": "Générique",
+  "aiRole": "Vous jouez le prospect intéressé mais indécis.",
+  "userRole": "Le commercial suit un schéma de vente classique.",
+
+  "prospectProfiles": [
+    "Prospect sensible au prix et compare les offres",
+    "Prospect convaincu par les bénéfices mais hésite sur le timing",
+    "Prospect demande l'avis d'un collègue avant de décider",
+    "Prospect craint le risque et veut des garanties",
+    "Prospect décideur unique mais manque de budget"
+  ],
+
+  "steps": [
+    { "id": "Introduction",     "goal": "Saluer, créer le climat, préciser l’objet.",           "mustSay": ["bonjour","objectif"] },
+    { "id": "CurrentSituation", "goal": "Comprendre la situation actuelle et les attentes.",     "mustSay": ["actuellement","attentes"] },
+    { "id": "Pain",             "goal": "Faire formuler les points de douleur ou frustrations.", "mustSay": ["difficulté","problème"] },
+    { "id": "ValueProposition", "goal": "Mettre en regard les bénéfices clés de l’offre.",       "mustSay": ["solution","bénéfice"] },
+    { "id": "Objections",       "goal": "Traiter prix, concurrence, timing.",                    "mustSay": ["prix","concurrence"] },
+    { "id": "Closing",          "goal": "Conclure ou fixer l’étape suivante clairement.",        "mustSay": ["accord","prochaine étape"] }
+  ]
+}

@@ -1,3 +1,4 @@
+// lib/settings_screen.dart
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,10 +7,12 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../animated_gradient_button.dart';
+import '../gradient_text.dart';
+import '../rotating_glow_border.dart';
 import '../drawer/custom_bottom_nav_bar.dart';
 import '../logo_widget.dart';
-
-
 
 class SettingsScreen extends StatefulWidget {
   @override
@@ -20,20 +23,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   bool showExplanation = true;
   bool soundEnabled = true;
+
   void _rateApp() async {
-    final url = 'https://play.google.com/store/apps/details?id=com.quiz_commercial2024.quiz_commercial2024&pcampaignid=web_share';
+    final url =
+        'https://play.google.com/store/apps/details?id=com.quiz_commercial2024.quiz_commercial2024&pcampaignid=web_share';
     if (await canLaunch(url)) {
       await launch(url);
     } else {
-      // Gérer l'erreur si l'URL ne peut pas être lancée
       print('Could not launch $url');
     }
   }
 
   void _shareApp() {
     Share.share(
-        'Découvrez cette superbe application: [https://play.google.com/store/apps/details?id=com.quiz_commercial2024.quiz_commercial2024&pcampaignid=web_share]'.tr(),
-        subject: 'Partager avec'.tr());
+      'Découvrez cette superbe application: '
+          '[https://play.google.com/store/apps/details?id=com.quiz_commercial2024.quiz_commercial2024&pcampaignid=web_share]'
+          .tr(),
+      subject: 'Partager avec'.tr(),
+    );
   }
 
   void _showLanguagePicker(BuildContext context) {
@@ -42,61 +49,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text("Choisir la langue".tr()),
-          content: SingleChildScrollView( // Ajouté pour gérer les contenus dépassant la hauteur
+          content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Wrap(  // Utiliser un Wrap au lieu d'une Row pour une meilleure réactivité
-                  spacing: 10, // Espace horizontal entre les chips
-                  alignment: WrapAlignment.center, // Centrer les chips
+                Wrap(
+                  spacing: 10,
+                  alignment: WrapAlignment.center,
                   children: [
                     InkWell(
-                      onTap: () {
+                      onTap: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('languageCode', 'fr');
                         context.setLocale(Locale('fr'));
                         Navigator.of(context).pop();
                       },
                       child: Container(
-                        margin: EdgeInsets.all(8), // Ajustement de l'espace autour du bouton
-                        padding: EdgeInsets.all(8), // Augmente la zone cliquable
+                        margin: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white, // Ajoute une couleur de fond
+                          color: Colors.white,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.5), // Ajoute une ombre
+                              color: Colors.grey.withOpacity(0.5),
                               spreadRadius: 3,
                               blurRadius: 5,
-                              offset: Offset(0, 3),
+                              offset: const Offset(0, 3),
                             ),
                           ],
-                          borderRadius: BorderRadius.circular(20), // Arrondit les coins
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Image.asset('assets/images/france.png', width: 28, height: 28),
+                        child: Image.asset(
+                          'assets/images/france.png',
+                          width: 28,
+                          height: 28,
+                        ),
                       ),
                     ),
                     InkWell(
-                      onTap: () {
+                      onTap: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('languageCode', 'en');
                         context.setLocale(Locale('en'));
                         Navigator.of(context).pop();
                       },
                       child: Container(
-                        margin: EdgeInsets.all(8), // Ajustement de l'espace autour du bouton
-                        padding: EdgeInsets.all(8), // Augmente la zone cliquable
+                        margin: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white, // Ajoute une couleur de fond
+                          color: Colors.white,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.5), // Ajoute une ombre
+                              color: Colors.grey.withOpacity(0.5),
                               spreadRadius: 3,
                               blurRadius: 5,
-                              offset: Offset(0, 3),
+                              offset: const Offset(0, 3),
                             ),
                           ],
-                          borderRadius: BorderRadius.circular(20), // Arrondit les coins
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Image.asset('assets/images/united-kingdom.png', width: 28, height: 28),
+                        child: Image.asset(
+                          'assets/images/united-kingdom.png',
+                          width: 28,
+                          height: 28,
+                        ),
                       ),
                     ),
-                    // Ajoutez d'autres langues ici
                   ],
                 ),
               ],
@@ -107,8 +125,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -116,7 +132,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       future: SharedPreferences.getInstance(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const CircularProgressIndicator();
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
         final prefs = snapshot.data!;
         showExplanation = prefs.getBool('showExplanation') ?? true;
@@ -140,138 +158,236 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             child: SingleChildScrollView(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                // Centrer les éléments verticalement
                 children: [
-                  SizedBox(height: 40),
-                  // Espacement entre le haut de l'écran et le logo
-                  LogoWidget(),
+                  const SizedBox(height: 40),
+                  // Logo animée
 
-                  QrImageView(
-                    data: "https://play.google.com/store/apps/details?id=com.quiz_commercial2024.quiz_commercial2024&pcampaignid=web_share",
-                    version: QrVersions.auto,
-                    size: 120.0,
-                    // ignore: deprecated_member_use
-                    foregroundColor: Colors.blue.shade800, // Couleur du QR code
+
+                  const SizedBox(height: 24),
+                  // Titre "Paramètres" en GradientText
+                  GradientText(
+                    'Paramètres'.tr(),
+                    style: const TextStyle(
+                        fontSize: 26, fontWeight: FontWeight.bold),
+                    gradient:  LinearGradient(colors: [
+                      Colors.blue.shade900,
+                      Colors.white,
+                      Colors.blue.shade900,
+                    ]),
                   ),
-                  Text(
-                    "Scanne moi",
-                    style: TextStyle(
-                      color: Colors.blue.shade800, // Couleur du texte
-                      fontSize: 14, // Taille du texte
+
+                  const SizedBox(height: 24),
+                  // QR Code avec halo animé
+                  RotatingGlowBorder(
+                    borderWidth: 4,
+                    borderRadius: 12,
+                    colors:  [Colors.blue.shade900, Colors.white, Colors.blue.shade900],
+                    duration: const Duration(seconds: 4),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          QrImageView(
+                            data:
+                            "https://play.google.com/store/apps/details?id=com.quiz_commercial2024.quiz_commercial2024&pcampaignid=web_share",
+                            version: QrVersions.auto,
+                            size: 140.0,
+                            foregroundColor: Colors.blue.shade800,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Scanne moi".tr(),
+                            style: TextStyle(
+                              color: Colors.blue.shade800,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  SizedBox(height: 16),
+
+                  const SizedBox(height: 32),
+                  // Toggle: Afficher Explication
                   ListTile(
-                    leading: const Icon(Icons.check, color: Colors.black87),
-                    title: const Text('Afficher Explication (Quizz)'),
+                    leading: Icon(Icons.check,
+                        color: showExplanation ? Colors.green : Colors.grey),
+                    title: Text('Afficher Explication (Quizz)'.tr()),
                     trailing: Switch(
                       value: showExplanation,
                       onChanged: (value) async {
-                        setState(() {
-                          showExplanation = value;
-                        });
-                        final prefs = await SharedPreferences.getInstance();
+                        setState(() => showExplanation = value);
                         prefs.setBool('showExplanation', value);
                       },
+                      activeColor: Colors.blue.shade900,
                     ),
                   ),
+
+                  // Toggle: Activer le son
                   ListTile(
-                    leading:  Icon(Icons.volume_up, color: Colors.green.shade300),
-                    title: const Text('Activer le son'),
+                    leading: Icon(Icons.volume_up,
+                        color: soundEnabled ? Colors.green.shade300 : Colors.grey),
+                    title: Text('Activer le son'.tr()),
                     trailing: Switch(
                       value: soundEnabled,
                       onChanged: (value) async {
-                        setState(() {
-                          soundEnabled = value;
-                        });
-                        final prefs = await SharedPreferences.getInstance();
+                        setState(() => soundEnabled = value);
                         prefs.setBool('soundEnabled', value);
                       },
+                      activeColor: Colors.blue.shade900,
                     ),
                   ),
-                  buildStepButton(
 
-                    Icons.info,
-                    "Information".tr(),
-                        () {
+                  const SizedBox(height: 16),
+
+                  // Boutons animés
+                  AnimatedGradientButton(
+                    onTap: () {
                       Navigator.pushNamed(context, '/information');
                     },
-                    Colors.blue.shade800, // Couleur de l'icône
-                    true, // Rendre le bouton cliquable
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.info, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Information".tr(),
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ],
+                    ),
                   ),
 
-                  buildStepButton(
-
-                    Icons.help_outline,
-                    "À propos".tr(),
-                        () {
+                  const SizedBox(height: 12),
+                  AnimatedGradientButton(
+                    onTap: () {
                       Navigator.pushNamed(context, '/about');
                     },
-                    Colors.blue.shade800, // Couleur de l'icône
-                    true, // Rendre le bouton cliquable
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.help_outline, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          "À propos".tr(),
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ],
+                    ),
                   ),
 
-                  buildLanguageSelectionButton(),
-                  buildStepButton(
-
-                    Icons.star,
-                    "Noter l'application".tr(),
-                    _rateApp,
-                    Colors.blue.shade800, // Couleur de l'icône
-                    true, // Rendre le bouton cliquable
-                  ),
-                  buildStepButton(
-
-                    Icons.share,
-                    "Partager l'application".tr(),
-                    _shareApp,
-                    Colors.blue.shade800, // Couleur de l'icône
-                    true, // Rendre le bouton cliquable
+                  const SizedBox(height: 12),
+                  AnimatedGradientButton(
+                    onTap: () => _showLanguagePicker(context),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.language, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Choisir la langue".tr(),
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ],
+                    ),
                   ),
 
+                  const SizedBox(height: 12),
+                  AnimatedGradientButton(
+                    onTap: _rateApp,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.star, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Noter l'application".tr(),
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
 
+                  const SizedBox(height: 12),
+                  AnimatedGradientButton(
+                    onTap: _shareApp,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.share, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Partager l'application".tr(),
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
 
-
-                  buildStepButton(
-
-                    Icons.exit_to_app,
-                    "Se déconnecter".tr(),
-                        () async {
+                  const SizedBox(height: 12),
+                  AnimatedGradientButton(
+                    onTap: () async {
                       await FirebaseAuth.instance.signOut();
-                      // Redirigez vers l'écran de connexion après la déconnexion
                       Navigator.of(context).pushReplacementNamed('/login');
                     },
-                    Colors.black, // Couleur de l'icône
-                    true, // Rendre le bouton cliquable
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.exit_to_app, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Se déconnecter".tr(),
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ],
+                    ),
                   ),
 
-                  buildStepButton(
-
-                    Icons.delete_forever,
-                    "Supprimer le compte".tr(),
-                        () => _showDeleteAccountDialog(context),
-                    Colors.black, // Couleur de l'icône
-                    true, // Rendre le bouton cliquable
+                  const SizedBox(height: 12),
+                  AnimatedGradientButton(
+                    onTap: () => _showDeleteAccountDialog(context),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.delete_forever, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Supprimer le compte".tr(),
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ],
+                    ),
                   ),
-                  SizedBox(height: 16),
+
+                  const SizedBox(height: 24),
                   Text(
-                    "Tous droits réservés © 2023".tr(),
+                    "Tous droits réservés © 2025".tr(),
                     style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 8,
+                      color: Colors.grey.shade700,
+                      fontSize: 10,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   Text(
                     "Conforme au RGPD de l'UE".tr(),
                     style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 8,
+                      color: Colors.grey.shade700,
+                      fontSize: 10,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -280,118 +396,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             parentContext: context,
             currentIndex: 4,
             scaffoldKey: _scaffoldKey,
-             // Adaptez les paramètres en fonction des besoins
           ),
         );
       },
     );
   }
-  Widget buildLanguageSelectionButton() {
-    return GestureDetector(
-      onTap: () => _showLanguagePicker(context),
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 8),
-        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              spreadRadius: 2,
-              blurRadius: 5,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-        width: MediaQuery.of(context).size.width * 0.7, // Définir la largeur du bouton
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withOpacity(0.3), // Modifiez la couleur selon le thème de l'application
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.language, // Icône de langue
-                color: Colors.blue.shade800, // Modifiez la couleur selon le thème de l'application
-                size: 25,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                "Choisir la langue".tr(), // Texte à changer selon la langue actuelle de l'app ou vos préférences
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue.shade800, // Modifiez la couleur selon le thème de l'application
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-
-
-  // Fonction buildStepButton
-  Widget buildStepButton(IconData icon, String text, Function() onPressed,
-      Color iconColor, bool isClickable) {
-    return GestureDetector(
-      onTap: isClickable ? onPressed : null,
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 8),
-        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: isClickable ? Colors.grey.shade200 : Colors.blueAccent.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              spreadRadius: 2,
-              blurRadius: 5,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-        width: MediaQuery.of(context).size.width * 0.7, // Définir la largeur du bouton
-        // Utilisez MediaQuery.of(context).size.width * pour calculer une largeur proportionnelle
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: 25,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                text,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue.shade800,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-}
 
   void _showDeleteAccountDialog(BuildContext context) {
     showDialog(
@@ -400,7 +409,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return AlertDialog(
           title: Text('Supprimer le compte'.tr()),
           content: Text(
-              'Êtes-vous sûr de vouloir supprimer définitivement votre compte ? Cette action est irréversible.'.tr()),
+            'Êtes-vous sûr de vouloir supprimer définitivement votre compte ? '
+                'Cette action est irréversible.'.tr(),
+          ),
           actions: <Widget>[
             TextButton(
               child: Text('Annuler'.tr()),
@@ -409,15 +420,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             TextButton(
-              child: Text('Supprimer'.tr(), style: TextStyle(color: Colors.red)),
+              child: Text('Supprimer'.tr(),
+                  style: const TextStyle(color: Colors.red)),
               onPressed: () async {
-                Navigator.of(context).pop(); // Ferme la boîte de dialogue
+                Navigator.of(context).pop();
                 try {
                   await FirebaseAuth.instance.currentUser?.delete();
                   Navigator.of(context).pushReplacementNamed('/login');
-                  // Redirection vers l'écran de connexion
                 } catch (e) {
-                  // Gérer les erreurs ici
                   print("Erreur lors de la suppression du compte: $e");
                 }
               },
@@ -427,3 +437,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
     );
   }
+}
