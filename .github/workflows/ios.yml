@@ -1,20 +1,38 @@
+# .github/workflows/ios.yml
 name: Build iOS
 on: [push]
 
 jobs:
   build:
-    runs-on: macos-14            # Xcode 15
+    runs-on: macos-14          # macOS Sonoma + Xcode 15
     steps:
+      # 1. Récupération du code
       - uses: actions/checkout@v4
+
+      # 2. Installation de Flutter
       - uses: subosito/flutter-action@v2
+        with:
+          # optionnel : channel: "stable"
+          cache: true
+
+      # 3. Préparation Flutter
       - run: flutter clean
       - run: flutter pub get
 
+      # 4. Import des fichiers de signature
       - name: Install codesign files
         run: |
-          echo "$CERT_BASE64"    | base64 -d > cert.p12
-          echo "$PROFILE_BASE64" | base64 -d > profile.mobileprovision
-          security import cert.p12 -P "$CERT_PASSWORD" -A
+          # recrée le p12 et le provisioning profile
+          printf '%s' "$CERT_BASE64"    | base64 -d > cert.p12
+          printf '%s' "$PROFILE_BASE64" | base64 -d > profile.mobileprovision
+
+          # supprime tout éventuel \r caché dans le mot de passe
+          CLEAN_PASS=$(printf '%s' "$CERT_PASSWORD" | tr -d '\r')
+
+          # import du certificat (ajout aux trousseaux système + login)
+          security import cert.p12 -P "$CLEAN_PASS" -A
+
+          # place le provisioning profile au bon endroit
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
         env:
@@ -22,7 +40,11 @@ jobs:
           PROFILE_BASE64: ${{ secrets.PROFILE_BASE64 }}
           CERT_PASSWORD:  ${{ secrets.CERT_PASSWORD }}
 
-      - run: flutter build ipa --release     # signature automatique
+      # 5. Compilation et signature de l’IPA
+      - name: Flutter build (ipa)
+        run: flutter build ipa --release      # <-- plus de --no-codesign
+
+      # 6. Export du résultat
       - uses: actions/upload-artifact@v4
         with:
           name: ios-release
