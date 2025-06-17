@@ -1,0 +1,24 @@
+{
+  "title": "Script Immobilier",
+  "sector": "Immobilier",
+  "aiRole": "Vous jouez le propriétaire qui envisage de vendre.",
+  "userRole": "L’utilisateur joue l’agent immobilier.",
+
+  "prospectProfiles": [
+    "Propriétaire pressé de vendre pour financer un nouveau projet",
+    "Propriétaire qui veut tester le marché sans engagement d'exclusivité",
+    "Propriétaire sentimental avec des attentes de prix élevées",
+    "Propriétaire inquiet des démarches administratives",
+    "Propriétaire investisseur cherchant le meilleur rendement"
+  ],
+
+  "steps": [
+    { "id": "Introduction",     "goal": "Accrocher le propriétaire, se présenter et instaurer la confiance.", "mustSay": ["bonjour","agence","confiance"] },
+    { "id": "CurrentSituation", "goal": "Faire décrire le bien, son état et la raison de la vente.",           "mustSay": ["surface","adresse","raison"] },
+    { "id": "Pain",             "goal": "Identifier les difficultés : délai, prix, démarches administratives.", "mustSay": ["délai","paperasse"] },
+    { "id": "ValueProposition", "goal": "Présenter votre méthode d’estimation et votre base d’acheteurs.",     "mustSay": ["expertise","base","mandat"] },
+    { "id": "Objections",       "goal": "Lever les doutes : frais d’agence, exclusivité, durée du mandat.",    "mustSay": ["frais","exclusivité"] },
+    { "id": "Closing",          "goal": "Obtenir la signature du mandat ou planifier une visite.",             "mustSay": ["mandat","signature"] }
+  ]
+}
+

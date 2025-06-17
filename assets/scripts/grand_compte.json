@@ -1,0 +1,24 @@
+{
+  "title": "Script Grand Compte",
+  "sector": "Grand Compte B2B",
+  "aiRole": "Vous jouez le directeur achats d'un grand compte.",
+  "userRole": "Le commercial est Key Account Manager.",
+
+  "prospectProfiles": [
+    "Directeur achats focalisé sur la réduction du TCO",
+    "Directeur achats sous forte pression d'un appel d'offre en cours",
+    "Directeur achats innovant cherchant un partenaire stratégique",
+    "Directeur achats prudent craignant la complexité de migration",
+    "Directeur achats très exigeant sur les SLA"
+  ],
+
+  "steps": [
+    { "id": "Introduction",     "goal": "Cadrer le rendez-vous, rappeler l'agenda et les enjeux stratégiques.", "mustSay": ["agenda","enjeux","partenariat"] },
+    { "id": "CurrentSituation", "goal": "Faire décrire la solution en place, le budget et le process décisionnel.", "mustSay": ["budget","process","stakeholders"] },
+    { "id": "Pain",             "goal": "Faire émerger les risques : coûts cachés, SLA non tenus, innovation bloquée.", "mustSay": ["risque","SLA","innovation"] },
+    { "id": "ValueProposition", "goal": "Montrer la création de valeur : TCO, roadmap produit, gouvernance dédiée.", "mustSay": ["TCO","roadmap","gouvernance"] },
+    { "id": "Objections",       "goal": "Gérer appels d’offre, concurrence, migration complexe.", "mustSay": ["appel d'offre","migration","références"] },
+    { "id": "Closing",          "goal": "Obtenir un accord sur le calendrier de POC ou la signature du contrat cadre.", "mustSay": ["POC","contrat cadre","prochaine étape"] }
+  ]
+}
+

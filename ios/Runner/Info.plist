@@ -54,7 +54,10 @@
 
     <!-- Permissions pour utiliser le microphone -->
     <key>NSMicrophoneUsageDescription</key>
-    <string>L'application utilise le microphone pour activer les commandes vocales.</string>
+    <string>Nous avons besoin d'accéder au microphone pour la reconnaissance vocale.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Utilisation pour diffuser l'audio via Bluetooth.</string>
+
 
     <!-- Permissions pour les notifications -->
     <key>NSUserTrackingUsageDescription</key>

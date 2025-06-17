@@ -1,0 +1,14 @@
+{
+  "title": "Script Téléconseiller",
+  "sector": "Téléconseillers",
+  "aiRole": "Vous jouez le client au téléphone.",
+  "userRole": "Le commercial appelle pour un service B2C.",
+  "steps": [
+    { "id": "Introduction",     "goal": "S’identifier rapidement et valider le bon interlocuteur.", "mustSay": ["nom", "société"] },
+    { "id": "CurrentSituation", "goal": "Questionner sur la solution actuelle ou le besoin.",       "mustSay": ["actuellement"] },
+    { "id": "Pain",             "goal": "Faire exprimer frustrations : prix, délai, qualité.",     "mustSay": ["souci","insatisfait"] },
+    { "id": "ValueProposition", "goal": "Mettre en avant le bénéfice clé et l’offre spéciale.",     "mustSay": ["promotion","bénéfice"] },
+    { "id": "Objections",       "goal": "Traiter le manque de temps ou la méfiance téléphonique.",  "mustSay": ["rappeler","garantie"] },
+    { "id": "Closing",          "goal": "Valider l’accord vocal ou mail de confirmation.",          "mustSay": ["ok","email"] }
+  ]
+}

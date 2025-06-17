@@ -4,11 +4,13 @@ class Chapter {
   final String title;
   final String id;
   final int numberOfQuizzes;
+  final String imageUrl; // Nouveau champ
 
   Chapter({
     required this.title,
     required this.id,
     required this.numberOfQuizzes,
+    required this.imageUrl,
   });
 
   static Chapter fromFirestore(DocumentSnapshot doc) {
@@ -16,11 +18,14 @@ class Chapter {
 
     return Chapter(
       title: data['title'] ?? 'Untitled',
-      id: doc.id,  // Cela prend le 'id' comme 'chapter1', 'chapter2', etc.
+      id: doc.id,
       numberOfQuizzes: data['numberOfQuizzes'] ?? 0,
+      imageUrl: data['imageUrl'] ?? '', // Récupération de l'image
     );
   }
 }
+
+
 
 class Question {
   final String questionText;

@@ -1,0 +1,57 @@
+{
+  "title": "Script GMS – Implantation Mobilier (Frigos, Vitrines, Displays, Machines café…) ",
+  "sector": "Grande Distribution",
+  "aiRole": "Vous jouez le chef de secteur (chef de rayon) qui négocie l’implantation d’un nouveau mobilier de marque.",
+  "userRole": "Le délégué commercial représente une marque de boissons (Pepsi, Coca-Cola, Red Bull…) ou café.",
+
+  "prospectProfiles": [
+    "Chef de secteur déjà convaincu, veut surtout sécuriser la règle 80/20 et signer vite",
+    "Chef de secteur enthousiaste mais manque d’espace : doit réorganiser son linéaire",
+    "Chef de secteur très orienté marge : accepte si remises arrières et plan promo trimestriel",
+    "Chef de secteur pressé (ruptures fréquentes), prêt à implanter immédiatement",
+    "Chef de secteur focalisé RSE : exige un mobilier basse consommation et recyclable",
+    "Chef de secteur premium : veut booster le panier moyen avec une machine café haut de gamme",
+    "Chef de secteur prudent : teste d’abord un display promotionnel avant d’accepter un frigo",
+    "Chef de secteur novice, suit le siège : valide si la mécanique 80/20 et les supports PLV sont clairs",
+    "Chef de secteur très concurrentiel : veut être le 1er magasin pilote du nouveau meuble Red Bull",
+    "Chef de secteur sensible au coût énergie : ok si le fournisseur prend les frais d’électricité"
+  ],
+
+  "steps": [
+    {
+      "id": "Introduction",
+      "goal": "Créer le contact, rappeler la visite planifiée et l’objectif (implanter un mobilier de marque).",
+      "mustSay": ["bonjour", "mobilier", "objectif"]
+    },
+    {
+      "id": "CurrentSituation",
+      "goal": "Parler des ventes actuelles, de l’espace disponible et du mobilier existant.",
+      "mustSay": ["ventes", "espace", "mobilier actuel"]
+    },
+    {
+      "id": "Pain",
+      "goal": "Identifier ruptures, manque de visibilité, marges ou perte de rotation.",
+      "mustSay": ["rupture", "visibilité", "rotation", "marge"]
+    },
+    {
+      "id": "ValueProposition",
+      "goal": "Montrer les bénéfices : +rotation, +panier moyen, financement PLV, entretien inclus.",
+      "mustSay": ["rotation", "panier moyen", "PLV", "entretien"]
+    },
+    {
+      "id": "Planogram",
+      "goal": "Négocier la règle 80 % produits marque / 20 % autres SKU, emplacement et visuel.",
+      "mustSay": ["80 %", "20 %", "planogramme", "emplacement", "visuel"]
+    },
+    {
+      "id": "Objections",
+      "goal": "Traiter coûts énergie, place au sol, marge, concurrence, contrat de prêt.",
+      "mustSay": ["énergie", "place", "marge", "concurrence", "contrat de prêt"]
+    },
+    {
+      "id": "Closing",
+      "goal": "Valider la date d’implantation, signer bon de commande ou contrat de prêt.",
+      "mustSay": ["bon de commande", "contrat", "date d’implantation", "suivi"]
+    }
+  ]
+}

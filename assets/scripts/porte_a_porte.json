@@ -1,0 +1,28 @@
+{
+  "title": "Script Porte-à-porte",
+  "sector": "Porte-à-porte",
+  "aiRole": "Vous jouez l’interlocuteur (habitant ou décideur d’entreprise) visité au pas de la porte.",
+  "userRole": "Le commercial vend un service en porte-à-porte (B2C ou B2B).",
+
+  "prospectProfiles": [
+    "Habitant enthousiaste qui cherchait justement ce service et veut signer tout de suite",
+    "Habitant soucieux d’économies d’énergie, prêt à changer de fournisseur aujourd’hui",
+    "Habitant occupé mais ouvert : propose un rendez-vous ce soir pour finaliser",
+    "Responsable d’un petit commerce (B2B) en rupture de son contrat actuel, budget validé pour basculer immédiatement",
+    "Dirigeant de PME convaincu par l’argument écologique, prêt à signer sur-le-champ si le prix est correct",
+    "Habitant prudent : accepte un rendez-vous démonstration sous 48 h",
+    "Gérant d’atelier artisan curieux, veut un devis rapide et pourrait signer après comparaison",
+    "Habitant senior confiant dès qu’il voit les garanties écrites (signature probable one-shot)",
+    "Directeur d’agence locale déjà sensibilisé par le siège, doit juste fixer un créneau formel de signature",
+    "Habitant écolo déjà équipé d’un système partiel ; veut étendre l’équipement et peut décider dès aujourd’hui"
+  ],
+
+  "steps": [
+    { "id": "Introduction",     "goal": "Saluer, se présenter, obtenir l’attention.",            "mustSay": ["bonjour","service"] },
+    { "id": "CurrentSituation", "goal": "Comprendre la solution ou contrat actuel.",             "mustSay": ["actuel","fournisseur"] },
+    { "id": "Pain",             "goal": "Faire émerger la gêne : prix, pannes, contraintes.",    "mustSay": ["problème","cher"] },
+    { "id": "ValueProposition", "goal": "Montrer la simplicité de basculer, l’économie réalisée.", "mustSay": ["économie","simple"] },
+    { "id": "Objections",       "goal": "Répondre aux craintes (contrat, légitimité, délai).",   "mustSay": ["contrat","garantie"] },
+    { "id": "Closing",          "goal": "Obtenir la signature **ou** caler un rendez-vous proche.", "mustSay": ["signature","rendez-vous"] }
+  ]
+}

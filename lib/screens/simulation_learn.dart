@@ -1,5 +1,7 @@
-import 'package:easy_localization/easy_localization.dart';
+
+import 'dart:io'; // Import ajouté pour la détection de plateforme
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -26,12 +28,17 @@ class _SimulationLearnState extends State<SimulationLearn> {
 
   bool isTrainerSpeaking = false;
   bool isSpeaking = false;
-  bool _awaitingValidation = false;
   bool _isListening = false;
   String? userProfilePhotoUrl;
   String? salesScript;
   Duration maxSilence = Duration(seconds: 30);
 
+  final List<Map<String, dynamic>> _messages = [
+    {
+      "role": "system",
+      'content': "Bienvenue dans le mode d'apprentissage de vente. Vous serez guidé et corrigé après chaque étape."
+    },
+  ];
 
   @override
   void initState() {
@@ -42,8 +49,6 @@ class _SimulationLearnState extends State<SimulationLearn> {
       _speakInitialTrainerMessage();
     });
     _initializeSalesScript();
-
-    // Charger la photo de profil de l'utilisateur
     _loadUserProfile();
   }
 
@@ -58,8 +63,7 @@ class _SimulationLearnState extends State<SimulationLearn> {
 
   Future<void> _initializeSalesScript() async {
     String scriptId = widget.chapterId;
-    DocumentSnapshot doc = await FirebaseFirestore.instance.collection(
-        'scripts').doc(scriptId).get();
+    DocumentSnapshot doc = await FirebaseFirestore.instance.collection('scripts').doc(scriptId).get();
 
     if (doc.exists && doc.data() != null) {
       setState(() {
@@ -83,19 +87,51 @@ class _SimulationLearnState extends State<SimulationLearn> {
     });
   }
 
+  // Configuration de Flutter TTS avec les réglages pour forcer la sortie sur le haut-parleur
   void _configureTts(String languageCode) async {
+    // Définition de la langue et des paramètres de base
     await flutterTts.setLanguage(languageCode);
     flutterTts.setPitch(1.0);
     flutterTts.setSpeechRate(0.6);
     flutterTts.setVolume(1.0);
-  }
 
-  final List<Map<String, dynamic>> _messages = [
-    {
-      "role": "system",
-      'content': "Bienvenue dans le mode d'apprentissage de vente. Vous serez guidé et corrigé après chaque étape."
-    },
-  ];
+    // Configuration spécifique selon la plateforme pour forcer la sortie audio sur le haut-parleur
+    if (Platform.isIOS) {
+      // Pour iOS, on définit la catégorie audio "playAndRecord" avec l'option defaultToSpeaker
+      await flutterTts.setIosAudioCategory(
+        IosTextToSpeechAudioCategory.playAndRecord,
+        [
+          IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
+          IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+          IosTextToSpeechAudioCategoryOptions.duckOthers
+        ],
+      );
+    } else if (Platform.isAndroid) {
+      // Pour Android, cette méthode aide à orienter l'audio vers le haut-parleur
+      await flutterTts.setAudioAttributesForNavigation();
+      // Note : Il peut être nécessaire d'ajouter dans AndroidManifest.xml
+      // <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+      // afin de garantir le bon fonctionnement sur certains appareils.
+    }
+
+    // Configuration centralisée des callbacks
+    flutterTts.setStartHandler(() {
+      setState(() {
+        isSpeaking = true;
+      });
+    });
+    flutterTts.setCompletionHandler(() {
+      setState(() {
+        isSpeaking = false;
+      });
+    });
+    flutterTts.setErrorHandler((msg) {
+      setState(() {
+        isSpeaking = false;
+      });
+      print("Erreur TTS: $msg");
+    });
+  }
 
   void _sendMessage(String content) async {
     setState(() {
@@ -113,19 +149,16 @@ class _SimulationLearnState extends State<SimulationLearn> {
 
       final combinedScript = "$contextPrompt\n$salesScript";
 
-      final response = await _gptService.generateTextBasedOnSalesScript(
-          _messages, combinedScript);
+      final response = await _gptService.generateTextBasedOnSalesScript(_messages, combinedScript);
       _addTrainerResponse(response);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(
-              "Erreur lors de la génération de la réponse de l'IA.")));
+          SnackBar(content: Text("Erreur lors de la génération de la réponse de l'IA.")));
     }
   }
 
   void _addTrainerResponse(String response) {
     String cleanResponse = response.replaceAll(RegExp(r'[*]'), '');
-
     setState(() {
       _messages.add({
         'role': 'assistant',
@@ -173,43 +206,23 @@ class _SimulationLearnState extends State<SimulationLearn> {
     super.dispose();
   }
 
-  // Simulez une action qui active/désactive l'animation
+  // Simule une action qui active/désactive l'animation
   void toggleSpeaking() {
     setState(() {
       isSpeaking = !isSpeaking;
     });
   }
+
   Future<void> _speak(String text) async {
     try {
-      // Active l'animation Lottie
       setState(() {
         isSpeaking = true;
       });
-
-      // Gestionnaires pour activer/désactiver Lottie
-      flutterTts.setStartHandler(() {
-        setState(() {
-          isSpeaking = true;
-        });
-      });
-
-      flutterTts.setCompletionHandler(() {
-        setState(() {
-          isSpeaking = false; // Désactive l'animation à la fin de la parole
-        });
-      });
-
-      flutterTts.setErrorHandler((msg) {
-        setState(() {
-          isSpeaking = false; // Désactive également en cas d'erreur
-        });
-      });
-
-      await flutterTts.speak(text); // Commence la parole
+      await flutterTts.speak(text);
     } catch (e) {
       print("Erreur lors de la lecture du texte : $e");
       setState(() {
-        isSpeaking = false; // Assurez-vous de désactiver en cas d'erreur
+        isSpeaking = false;
       });
     }
   }
@@ -225,59 +238,46 @@ class _SimulationLearnState extends State<SimulationLearn> {
               // En-tête
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 20),
-                // Espacement horizontal pour le conteneur
                 color: Colors.white70,
-                // Fond blanc cassé pour le conteneur
                 child: Column(
                   children: [
-                    SizedBox(height: 50), // Espace pour descendre le bouton
+                    SizedBox(height: 50),
                     ElevatedButton.icon(
-                      icon: Icon(Icons.ads_click, color: Colors.orangeAccent,
-                          size: 24), // Icône du bouton
+                      icon: Icon(Icons.ads_click, color: Colors.orangeAccent, size: 24),
                       label: Text(
-                        'Clic Terminer'.tr(), // Texte du bouton
+                        'Clic Terminer'.tr(),
                         style: TextStyle(
                           fontSize: 18,
-                          color: Colors.blue.shade800, // Couleur du texte
-                          fontWeight: FontWeight
-                              .bold, // Mettre en gras pour renforcer le style
+                          color: Colors.blue.shade800,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                       onPressed: () {
-                        _showExitConfirmationDialog(); // Appelle la méthode pour afficher le dialogue
+                        _showExitConfirmationDialog(context); // Appel avec le contexte actuel
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.brown.shade50,
-                        // Couleur de fond du bouton
                         shadowColor: Colors.brown.shade200,
-                        // Couleur de l'ombre pour l'effet 3D
                         elevation: 10,
-                        // Élévation pour créer de la profondeur
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                              15), // Coins arrondis pour un style moderne
+                          borderRadius: BorderRadius.circular(15),
                         ),
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 16), // Espacement interne
+                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                       ),
                     ),
                   ],
                 ),
               ),
-
-
               // Corps principal
               Expanded(
                 child: Stack(
                   children: <Widget>[
-                    // Fond d'écran
                     Opacity(
                       opacity: 0.9,
                       child: Container(
                         decoration: BoxDecoration(
                           image: DecorationImage(
-                            image: AssetImage(
-                                'assets/images/background_concours.png'),
+                            image: AssetImage('assets/images/background_concours.png'),
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -289,38 +289,28 @@ class _SimulationLearnState extends State<SimulationLearn> {
                         Expanded(
                           child: ListView.builder(
                             controller: _scrollController,
-                            // Ajout du contrôleur
                             itemCount: _messages.length,
                             itemBuilder: (BuildContext context, int index) {
                               final message = _messages[index];
                               final isUserMessage = message['role'] == 'user';
-                              final isAssistantMessage = message['role'] ==
-                                  'assistant';
+                              final isAssistantMessage = message['role'] == 'assistant';
 
                               return Column(
-                                crossAxisAlignment: isUserMessage
-                                    ? CrossAxisAlignment.end
-                                    : CrossAxisAlignment.start,
+                                crossAxisAlignment: isUserMessage ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                                 children: [
                                   if (isAssistantMessage) ...[
-                                    // Affiche le texte immédiatement
                                     Container(
                                       color: Colors.green[100],
-                                      margin: const EdgeInsets.symmetric(
-                                          vertical: 4.0, horizontal: 8.0),
+                                      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
                                       padding: const EdgeInsets.all(8.0),
                                       child: ListTile(
                                         leading: CircleAvatar(
-                                          backgroundImage:
-                                          AssetImage(
-                                              'assets/images/system.png'),
+                                          backgroundImage: AssetImage('assets/images/system.png'),
                                           backgroundColor: Colors.grey,
                                         ),
                                         title: Text(
                                           message['content'],
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.normal,
-                                          ),
+                                          style: TextStyle(fontWeight: FontWeight.normal),
                                         ),
                                         subtitle: Text('Gérant'.tr()),
                                       ),
@@ -329,24 +319,18 @@ class _SimulationLearnState extends State<SimulationLearn> {
                                   if (isUserMessage)
                                     Container(
                                       color: Colors.blue[100],
-                                      margin: const EdgeInsets.symmetric(
-                                          vertical: 4.0, horizontal: 8.0),
+                                      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
                                       padding: const EdgeInsets.all(8.0),
                                       child: ListTile(
                                         leading: CircleAvatar(
-                                          backgroundImage: userProfilePhotoUrl !=
-                                              null
-                                              ? NetworkImage(
-                                              userProfilePhotoUrl!)
-                                              : AssetImage(
-                                              'assets/images/default_user.png'),
+                                          backgroundImage: userProfilePhotoUrl != null
+                                              ? NetworkImage(userProfilePhotoUrl!)
+                                              : AssetImage('assets/images/default_user.png'),
                                           backgroundColor: Colors.grey,
                                         ),
                                         title: Text(
                                           message['content'],
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                          style: TextStyle(fontWeight: FontWeight.bold),
                                         ),
                                         subtitle: Text('Commercial'.tr()),
                                       ),
@@ -378,7 +362,6 @@ class _SimulationLearnState extends State<SimulationLearn> {
                   ],
                 ),
               ),
-
               // Boutons
               Padding(
                 padding: const EdgeInsets.all(12.0),
@@ -386,46 +369,31 @@ class _SimulationLearnState extends State<SimulationLearn> {
                   children: <Widget>[
                     Expanded(
                       child: ElevatedButton.icon(
-                        icon: Icon(
-                          Icons.mic,
-                          color: Colors.white, // L'icône reste blanche
-                          size: 30,
-                        ),
+                        icon: Icon(Icons.mic, color: Colors.white, size: 30),
                         label: Text(
                           _isListening ? 'Stop'.tr() : 'Parler'.tr(),
-                          // Change le texte en fonction de l'état
-                          style: TextStyle(
-                            color: Colors.white, // Le texte reste blanc
-                            fontSize: 20,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 20),
                         ),
                         onPressed: () {
                           if (_isListening) {
-                            _stopListening(); // Arrête l'écoute
+                            _stopListening();
                           } else {
-                            _startListening(); // Démarre l'écoute
+                            _startListening();
                           }
                         },
                         style: ElevatedButton.styleFrom(
                           padding: EdgeInsets.symmetric(vertical: 15),
-                          backgroundColor: _isListening
-                              ? Colors.red // Rouge pendant l'écoute
-                              : Colors.green, // Vert par défaut
+                          backgroundColor: _isListening ? Colors.red : Colors.green,
                         ),
                       ),
                     ),
-
-
                     SizedBox(width: 16),
                     Expanded(
                       child: ElevatedButton.icon(
                         icon: Icon(Icons.send, color: Colors.white, size: 30),
                         label: Text(
                           'Valider'.tr(),
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                         ),
                         onPressed: () {
                           final value = _controller.text.trim();
@@ -444,20 +412,13 @@ class _SimulationLearnState extends State<SimulationLearn> {
               ),
             ],
           ),
-
           // Animation Lottie en superposition au centre
           if (isSpeaking)
             Center(
               child: Lottie.asset(
                 'assets/parler.json',
-                width: MediaQuery
-                    .of(context)
-                    .size
-                    .width * 0.7, // 60% de la largeur
-                height: MediaQuery
-                    .of(context)
-                    .size
-                    .width * 0.6, // Carré
+                width: MediaQuery.of(context).size.width * 0.7,
+                height: MediaQuery.of(context).size.width * 0.6,
                 repeat: true,
               ),
             ),
@@ -489,7 +450,6 @@ class _SimulationLearnState extends State<SimulationLearn> {
         MaterialPageRoute(
           builder: (context) => CompteRenduScreen(
             chapterId: widget.chapterId,
-
           ),
         ),
       );
@@ -520,8 +480,7 @@ class _SimulationLearnState extends State<SimulationLearn> {
       }
     }
     if (!hasPositive) {
-      report.writeln(
-          "- Aucun point positif explicite trouvé, mais votre effort est notable !");
+      report.writeln("- Aucun point positif explicite trouvé, mais votre effort est notable !");
     }
 
     // Axes d’amélioration
@@ -535,21 +494,18 @@ class _SimulationLearnState extends State<SimulationLearn> {
       }
     }
     if (!hasImprovement) {
-      report.writeln(
-          "- Aucun problème détecté, mais il y a toujours de la place pour affiner vos réponses.");
+      report.writeln("- Aucun problème détecté, mais il y a toujours de la place pour affiner vos réponses.");
     }
 
     // Recommandations
     report.writeln("\n## Recommandations");
     report.writeln("- Donnez des exemples plus spécifiques et concrets.");
-    report.writeln(
-        "- Posez des questions ouvertes pour explorer davantage les besoins du client.");
+    report.writeln("- Posez des questions ouvertes pour explorer davantage les besoins du client.");
     report.writeln("- Soyez précis et concis dans vos réponses.");
 
     // Conclusion
     report.writeln("\n## Conclusion");
-    report.writeln(
-        "Votre simulation est prometteuse. Continuez à travailler sur les axes identifiés pour exceller dans vos prochaines interactions.");
+    report.writeln("Votre simulation est prometteuse. Continuez à travailler sur les axes identifiés pour exceller dans vos prochaines interactions.");
 
     return report.toString();
   }
@@ -559,16 +515,15 @@ class _SimulationLearnState extends State<SimulationLearn> {
 
     if (currentUser != null && report.isNotEmpty) {
       try {
-        // Sauvegarder le rapport dans Firestore sous un nom distinct
         await FirebaseFirestore.instance
             .collection('users')
             .doc(currentUser.uid)
             .collection('chapters')
             .doc(widget.chapterId)
             .set({
-          'learningReport': report, // Utilisation de 'learningReport'
-          'gptMessages': _messages, // Ajouter les messages de la conversation
-          'timestamp': FieldValue.serverTimestamp(), // Ajouter une date pour le suivi
+          'learningReport': report,
+          'gptMessages': _messages,
+          'timestamp': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
         print("Rapport d'apprentissage sauvegardé avec succès !");
@@ -581,39 +536,99 @@ class _SimulationLearnState extends State<SimulationLearn> {
     } else {
       print("Utilisateur non connecté ou rapport vide.");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                "Impossible de sauvegarder : utilisateur non connecté ou rapport vide.")),
+        SnackBar(content: Text("Impossible de sauvegarder : utilisateur non connecté ou rapport vide.")),
       );
     }
   }
 
-  void _showExitConfirmationDialog() {
+  void _showExitConfirmationDialog(BuildContext context) {
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text("Terminer la session ?"),
-        content: Text(
-          "Voulez-vous terminer la session et générer un compte rendu ?",
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15.0), // Bordures arrondies
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Fermer le dialogue
-            },
-            child: Text("Annuler"),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context); // Fermer le dialogue
-              await _generateAndSaveReport(); // Générer le rapport
-            },
-            child: Text("Confirmer"),
-          ),
-        ],
+        title: Text(
+          "Terminer la simulation ?",
+          textAlign: TextAlign.center, // Centre le texte du titre
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Voulez-vous terminer la simulation et générer un compte rendu, ou quitter sans générer de compte rendu ?",
+              textAlign: TextAlign.center, // Centre le texte du contenu
+            ),
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildDialogButton(
+                  context,
+                  label: "Annuler",
+                  color: Colors.grey,
+                  onPressed: () {
+                    Navigator.pop(context); // Fermer le dialogue
+                  },
+                ),
+                _buildDialogButton(
+                  context,
+                  label: "Générer le compte rendu",
+                  color: Colors.blue,
+                  onPressed: () async {
+                    Navigator.pop(context); // Fermer le dialogue
+                    await _generateAndSaveReport(); // Générer le rapport
+                  },
+                ),
+                _buildDialogButton(
+                  context,
+                  label: "Quitter",
+                  color: Colors.red,
+                  onPressed: () {
+                    Navigator.pop(context); // Fermer le dialogue
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/levels', // Remplacez '/levels' par la route de votre écran d'accueil
+                          (Route<dynamic> route) => false,
+                    ); // Naviguer vers l'écran d'accueil en supprimant toutes les routes précédentes
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildDialogButton(
+      BuildContext context, {
+        required String label,
+        required Color color,
+        required VoidCallback onPressed,
+      }) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color, // Couleur de fond du bouton
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8.0), // Bordures arrondies
+            ),
+            padding: EdgeInsets.symmetric(vertical: 12.0), // Hauteur du bouton
+          ),
+          onPressed: onPressed,
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+
 
   Future<void> _generateAndSaveReport() async {
     try {
@@ -623,7 +638,6 @@ class _SimulationLearnState extends State<SimulationLearn> {
         builder: (context) => Center(child: CircularProgressIndicator()),
       );
 
-      // Générer le compte rendu
       final reportPrompt = """
     Vous êtes un formateur en vente. Voici les interactions enregistrées :
     ${_messages.map((m) => "${m['role']}: ${m['content']}").join("\n")}
@@ -642,7 +656,6 @@ class _SimulationLearnState extends State<SimulationLearn> {
         {'role': 'user', 'content': reportPrompt},
       ]);
 
-      // Sauvegarder le rapport
       await _saveLearningReportToFirestore(report);
 
       Navigator.pop(context);
@@ -652,7 +665,6 @@ class _SimulationLearnState extends State<SimulationLearn> {
         MaterialPageRoute(
           builder: (context) => CompteRenduScreen(
             chapterId: widget.chapterId,
-
           ),
         ),
       );
@@ -660,10 +672,8 @@ class _SimulationLearnState extends State<SimulationLearn> {
       Navigator.pop(context);
       print("Erreur lors de la génération du compte rendu : $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text("Erreur lors de la génération du compte rendu.")),
+        SnackBar(content: Text("Erreur lors de la génération du compte rendu.")),
       );
     }
   }
-
 }

@@ -1,87 +1,138 @@
+import 'package:auto_size_text/auto_size_text.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../screens/module_page.dart';
 
-// Génère la liste des scores pour débloquer chaque module, de façon dynamique
-List<int> generateUnlockScores(int numberOfModules, int increment) {
-  List<int> unlockScores = [];
-  for (int i = 0; i < numberOfModules; i++) {
-    unlockScores.add(i * increment);
-  }
-  return unlockScores;
+// Vérifie si un module est débloqué
+bool isModuleUnlocked(int unlockedLevels, int moduleIndex, Map<int, int> scoresPerLevel) {
+  if (moduleIndex == 0) return true; // Le premier module est toujours débloqué
+
+  int requiredLevels = moduleIndex * 3; // Tous les 3 niveaux
+  bool hasRequiredLevels = unlockedLevels >= requiredLevels;
+
+  // Vérifie que le dernier niveau du module précédent a un score ≥ 80
+  bool hasRequiredScore = (scoresPerLevel[requiredLevels] ?? 0) >= 80;
+
+  return hasRequiredLevels && hasRequiredScore;
 }
 
-// Map des scores des chapitres générés dynamiquement
-Map<String, List<int>> chapterModuleUnlockScores = {
-  for (int i = 1; i <= 20; i++) // Pour supporter plus de 5 chapitres
-    'chapter$i': generateUnlockScores(12, 270) // Génère une liste de scores pour chaque chapitre avec un incrément de 270 points
-};
+// Récupère les niveaux & modules débloqués + scores des niveaux
+Future<Map<String, dynamic>> fetchUnlockedData() async {
+  final user = FirebaseAuth.instance.currentUser;
 
-// Vérifie si le module est débloqué en fonction du score de l'utilisateur et du chapitre
-bool isModuleUnlocked(int? userScore, String chapterId, int moduleIndex) {
-  if (userScore == null ||
-      !chapterModuleUnlockScores.containsKey(chapterId) ||
-      moduleIndex < 0 ||
-      moduleIndex >= chapterModuleUnlockScores[chapterId]!.length) {
-    return false;
-  }
-  return userScore >= chapterModuleUnlockScores[chapterId]![moduleIndex];
+  if (user == null) return {};
+
+  DocumentSnapshot userDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .get();
+
+  if (!userDoc.exists) return {};
+
+  final data = userDoc.data() as Map<String, dynamic>? ?? {};
+  final unlockedLevels = (data['unlockedLevels'] as Map<String, dynamic>?) ?? {};
+  final unlockedModules = (data['unlockedModules'] as Map<String, dynamic>?) ?? {};
+  final scoresData = (data['chapters'] as Map<String, dynamic>?) ?? {};
+
+  Map<String, int> unlockedLevelsMap = {};
+  Map<String, int> unlockedModulesMap = {};
+  Map<String, Map<int, int>> scoresPerChapter = {};
+
+  unlockedLevels.forEach((key, value) {
+    unlockedLevelsMap[key] = value as int;
+  });
+
+  unlockedModules.forEach((key, value) {
+    unlockedModulesMap[key] = value as int;
+  });
+
+  scoresData.forEach((chapterId, chapterData) {
+    if (chapterData is Map && chapterData['levelScores'] is Map) {
+      scoresPerChapter[chapterId] = (chapterData['levelScores'] as Map).map(
+            (key, value) => MapEntry(int.parse(key.split(' ')[1]), value as int),
+      );
+    }
+  });
+
+  return {
+    'unlockedLevels': unlockedLevelsMap,
+    'unlockedModules': unlockedModulesMap,
+    'scoresPerChapter': scoresPerChapter,
+  };
 }
 
-// Construit la carte de leçon en fonction du statut de déblocage
-Widget buildLessonCard(BuildContext context, DocumentSnapshot module, int? userScore, String chapterId, int index) {
-  // Vérifiez que l'index est valide avant de construire la carte
-  if (!chapterModuleUnlockScores.containsKey(chapterId) || index < 0 || index >= chapterModuleUnlockScores[chapterId]!.length) {
-    return Container(); // Retournez un container vide si l'index est invalide
-  }
+Widget buildLessonCard(
+    BuildContext context,
+    DocumentSnapshot module,
+    int unlockedLevels,
+    int unlockedModules,
+    Map<int, int> scoresPerLevel,
+    String chapterId,
+    int moduleIndex,
+    ) {
+  bool unlocked = isModuleUnlocked(unlockedLevels, moduleIndex, scoresPerLevel);
 
-  bool unlocked = isModuleUnlocked(userScore, chapterId, index);
+  // Récupération sécurisée de la description : si le champ n'existe pas, on renvoie une chaîne vide.
+  String moduleDescription = '';
+  final data = module.data() as Map<String, dynamic>;
+  if (data.containsKey('description')) {
+    moduleDescription = data['description'] as String? ?? '';
+  } else {
+    moduleDescription = '';
+  }
 
   return Card(
-    color: unlocked ? Colors.white : Colors.grey.shade200,
+    elevation: 4,
     margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(16),
       side: BorderSide(
-        color: unlocked ? Colors.yellow.shade700 : Colors.grey,
-        width: 3,
+        color: unlocked ? Colors.green.shade300 : Colors.grey.shade400,
+        width: 2,
       ),
     ),
     child: ListTile(
-      leading: Icon(
-        unlocked ? Icons.play_circle_fill : Icons.lock,
-        color: unlocked ? Colors.green : Colors.grey.shade600,
-      ),
-      title: Center(
-        child: Text(
-          unlocked ? (module['title'] ?? 'No title') : 'Module ${index + 1}',
-          style: TextStyle(
-            color: unlocked ? Colors.blue.shade800 : Colors.grey.shade700,
-            fontWeight: FontWeight.bold,
-          ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      leading: CircleAvatar(
+        radius: 24,
+        backgroundColor: unlocked ? Colors.green.shade100 : Colors.grey.shade300,
+        child: Icon(
+          unlocked ? Icons.play_circle_fill : Icons.lock,
+          color: unlocked ? Colors.green.shade700 : Colors.grey.shade600,
+          size: 28,
         ),
       ),
-      subtitle: !unlocked
-          ? Center(
-        child: Text(
-          'Score nécessaire: ${chapterModuleUnlockScores[chapterId]![index]}',
-          style: TextStyle(
-            color: Colors.grey.shade800,
-            fontWeight: FontWeight.bold,
-          ),
+      title: AutoSizeText(
+        data['title'] ?? 'Module ${moduleIndex + 1}',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: unlocked ? Colors.blue.shade800 : Colors.grey.shade700,
         ),
+        maxLines: 1,
+      ),
+      subtitle: unlocked
+          ? AutoSizeText(
+        moduleDescription,
+        style: TextStyle(color: Colors.grey.shade700),
+        maxLines: 2,
       )
-          : null,
+          : AutoSizeText(
+        'Débloqué : 3 levels avec score ≥ 80',
+        style: TextStyle(
+            color: Colors.red.shade700, fontWeight: FontWeight.bold),
+        maxLines: 1,
+      ),
+      trailing: Icon(Icons.arrow_forward_ios, color: Colors.grey.shade600),
       onTap: unlocked
           ? () {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ModulePage(
-              parcoursNumber: index,
+              parcoursNumber: data['parcoursNumber'],
+              chapterId: chapterId,
               moduleId: module.id,
-              chapterId: chapterId, // Vous pouvez maintenant passer le chapitre correctement
             ),
           ),
         );
@@ -90,3 +141,4 @@ Widget buildLessonCard(BuildContext context, DocumentSnapshot module, int? userS
     ),
   );
 }
+
