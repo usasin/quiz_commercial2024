@@ -1,64 +1,46 @@
 name: Build iOS
-on:
-  push:
-    branches: [ main ]
+on: [push]
 
 jobs:
   build:
-    runs-on: macos-latest    # gratuit pour repo public
+    runs-on: macos-14           # Xcode 15
 
     steps:
-      # 1) checkout
+      # 1) Récupère ton code
       - uses: actions/checkout@v4
 
-      # 2) installer Flutter
+      # 2) Installe Flutter
       - uses: subosito/flutter-action@v2
         with:
           cache: true
 
-      # 3) préparer Flutter
+      # 3) Prépare Flutter
       - run: flutter clean
       - run: flutter pub get
 
-      # 3.5) pré-build iOS pour générer ios/Flutter/App.framework
-      - name: Pre-build iOS frameworks
-        run: flutter build ios --release --no-codesign
-
-      # 4) importer certificats + profil
+      # 4) Code signing
       - name: Install codesign files
         run: |
-          echo "${{ secrets.CERT_BASE64 }}"    | base64 --decode > cert.p12
-          echo "${{ secrets.PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
-
-          # créer trousseau temporaire
+          printf '%s' "$CERT_BASE64"    | base64 -d > cert.p12
+          printf '%s' "$PROFILE_BASE64" | base64 -d > profile.mobileprovision
+          CLEAN_PASS=$(printf '%s' "$CERT_PASSWORD" | tr -d '\r')
           security create-keychain -p "" build.keychain
           security import cert.p12 \
             -k ~/Library/Keychains/build.keychain \
-            -P "${{ secrets.CERT_PASSWORD }}" \
-            -T /usr/bin/codesign
-          security list-keychains -s ~/Library/Keychains/build.keychain
-
-          # copier le provisioning profile
+            -P "$CLEAN_PASS" -A
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp profile.mobileprovision \
-             ~/Library/MobileDevice/Provisioning\ Profiles/
-
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
         env:
           CERT_BASE64:    ${{ secrets.CERT_BASE64 }}
           PROFILE_BASE64: ${{ secrets.PROFILE_BASE64 }}
           CERT_PASSWORD:  ${{ secrets.CERT_PASSWORD }}
 
-      # 5) build IPA (signature automatique)
+      # 5) Build iOS
       - name: Build IPA
-        run: flutter build ipa \
-          --export-options-plist=ios/ExportOptions.plist
+        run: flutter build ipa --export-options-plist=ios/ExportOptions.plist
 
-      # 6) publier l’artefact
+      # 6) Récupère ton .ipa
       - uses: actions/upload-artifact@v4
         with:
           name: ios-release
           path: build/ios/ipa/*.ipa
-
-      # 7) cleanup
-      - name: Cleanup keychain
-        run: security delete-keychain build.keychain
