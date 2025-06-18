@@ -5,45 +5,60 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest  # runner macOS gratuit pour dépôt public
+    runs-on: macos-latest    # gratuit pour repo public
 
     steps:
+      # 1) checkout
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      # 2) installer Flutter
+      - uses: subosito/flutter-action@v2
         with:
           cache: true
 
+      # 3) préparer Flutter
       - run: flutter clean
       - run: flutter pub get
 
-      - name: Install signing files
+      # 3.5) pré-build iOS pour générer ios/Flutter/App.framework
+      - name: Pre-build iOS frameworks
+        run: flutter build ios --release --no-codesign
+
+      # 4) importer certificats + profil
+      - name: Install codesign files
         run: |
-          # 1) Décoder et écrire les fichiers
           echo "${{ secrets.CERT_BASE64 }}"    | base64 --decode > cert.p12
           echo "${{ secrets.PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
 
-          # 2) Importer le certificat dans le trousseau temporaire
+          # créer trousseau temporaire
           security create-keychain -p "" build.keychain
           security import cert.p12 \
             -k ~/Library/Keychains/build.keychain \
             -P "${{ secrets.CERT_PASSWORD }}" \
             -T /usr/bin/codesign
+          security list-keychains -s ~/Library/Keychains/build.keychain
 
-          # 3) Copier le provisioning profile
+          # copier le provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision \
-            ~/Library/MobileDevice/Provisioning\ Profiles/
+             ~/Library/MobileDevice/Provisioning\ Profiles/
 
+        env:
+          CERT_BASE64:    ${{ secrets.CERT_BASE64 }}
+          PROFILE_BASE64: ${{ secrets.PROFILE_BASE64 }}
+          CERT_PASSWORD:  ${{ secrets.CERT_PASSWORD }}
+
+      # 5) build IPA (signature automatique)
       - name: Build IPA
         run: flutter build ipa \
           --export-options-plist=ios/ExportOptions.plist
 
+      # 6) publier l’artefact
       - uses: actions/upload-artifact@v4
         with:
           name: ios-release
           path: build/ios/ipa/*.ipa
 
-      - name: Cleanup
+      # 7) cleanup
+      - name: Cleanup keychain
         run: security delete-keychain build.keychain
