@@ -1,65 +1,49 @@
-name: Build iOS  
-on: [push]
+name: Build iOS
+on:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: macos-14    # Xcode 15
+    runs-on: macos-latest  # runner macOS gratuit pour dépôt public
 
     steps:
-      # 1) Checkout
       - uses: actions/checkout@v4
 
-      # 2) Setup Flutter
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           cache: true
 
-      # 3) Flutter prep
       - run: flutter clean
       - run: flutter pub get
 
-      # 4) Create & unlock temporary keychain
-      - name: Create temporary keychain
+      - name: Install signing files
         run: |
-          security create-keychain -p "" temp.keychain
-          security default-keychain -s temp.keychain
-          security unlock-keychain -p "" temp.keychain
+          # 1) Décoder et écrire les fichiers
+          echo "${{ secrets.CERT_BASE64 }}"    | base64 --decode > cert.p12
+          echo "${{ secrets.PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
 
-      # 5) Import certificate & profile
-      - name: Import cert & profile
-        run: |
-          # 5.1 decode base64 -> files
-          echo "${{ secrets.CERT_BASE64 }}"    | base64 -D > cert.p12
-          echo "${{ secrets.PROFILE_BASE64 }}" | base64 -D > profile.mobileprovision
-
-          # 5.2 import into our keychain
+          # 2) Importer le certificat dans le trousseau temporaire
+          security create-keychain -p "" build.keychain
           security import cert.p12 \
-            -k ~/Library/Keychains/temp.keychain \
+            -k ~/Library/Keychains/build.keychain \
             -P "${{ secrets.CERT_PASSWORD }}" \
             -T /usr/bin/codesign
 
-          # 5.3 install provisioning profile
+          # 3) Copier le provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision \
-             ~/Library/MobileDevice/Provisioning\ Profiles/
-        env:
-          # these 3 secrets you devez avoir créés dans Settings → Secrets
-          CERT_BASE64:    ${{ secrets.CERT_BASE64 }}
-          PROFILE_BASE64: ${{ secrets.PROFILE_BASE64 }}
-          CERT_PASSWORD:  ${{ secrets.CERT_PASSWORD }}
+            ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      # 6) Build IPA (automatiquement codesigné)
       - name: Build IPA
-        run: |
-          flutter build ipa \
-            --export-options-plist=ios/ExportOptions.plist
+        run: flutter build ipa \
+          --export-options-plist=ios/ExportOptions.plist
 
-      # 7) Upload artifact
       - uses: actions/upload-artifact@v4
         with:
           name: ios-release
           path: build/ios/ipa/*.ipa
 
-      # 8) Cleanup
-      - name: Cleanup temp keychain
-        run: security delete-keychain temp.keychain
+      - name: Cleanup
+        run: security delete-keychain build.keychain
