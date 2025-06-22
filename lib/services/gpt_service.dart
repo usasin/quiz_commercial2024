@@ -2,12 +2,13 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 class GptService {
-  final String _apiKey = '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';
-
+  // ➜ plus de clé en dur !
+  final String _apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
   /// Génération de texte avec modèle GPT-4o-mini
   Future<String> generateTextBasedOnSalesScript(
       List<Map<String, dynamic>> messages,
