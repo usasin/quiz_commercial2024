@@ -48,6 +48,8 @@ dependencies:
   http_parser: ^4.0.2
   flutter_dotenv: ^5.2.1
   flutter_staggered_animations: ^1.1.1
+  sign_in_with_apple: ^7.0.1
+  crypto: ^3.0.6
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -59,6 +61,7 @@ flutter:
     - assets/sounds/correct.mp3
     - assets/sounds/incorrect.mp3
     - assets/icons/Google.svg
+    - assets/icons/Apple-logo-icon.svg
     - assets/images/logo.png
     - assets/images/system.png
     - assets/images/user.png

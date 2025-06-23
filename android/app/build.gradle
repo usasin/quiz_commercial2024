@@ -8,16 +8,52 @@ plugins {
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader('UTF-8') { reader -> localProperties.load(reader) }
+    localProperties.load(new FileInputStream(localPropertiesFile))
 }
-
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode', '1')
 def flutterVersionName = localProperties.getProperty('flutter.versionName', '1.0')
 
+/*────── CHARGEMENT DES SECRETS KEYS ──────*/
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
-    namespace = "com.quiz_commercial2024.quiz_commercial2024"
+    namespace "com.quiz_commercial2024.quiz_commercial2024"
     compileSdkVersion 35
     ndkVersion flutter.ndkVersion
+
+    defaultConfig {
+        applicationId "com.quiz_commercial2024.quiz_commercial2024"
+        minSdkVersion 24
+        targetSdkVersion 35
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+        multiDexEnabled true
+    }
+
+    /*──────── SIGNING CONFIGS ────────*/
+    signingConfigs {
+        release {
+            keyAlias      keystoreProperties['keyAlias']
+            keyPassword   keystoreProperties['keyPassword']
+            storeFile     file(keystoreProperties['storeFile'])
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles  getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro'
+        }
+        debug { signingConfig signingConfigs.release }   // si tu veux signer aussi le debug
+    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -26,33 +62,6 @@ android {
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
-    }
-
-    defaultConfig {
-        applicationId = "com.quiz_commercial2024.quiz_commercial2024"
-        minSdkVersion 24
-        multiDexEnabled true
-        targetSdkVersion 35
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
-    }
-
-    signingConfigs {
-        release {
-            keyAlias "release"
-            keyPassword 'Ines2010'
-            storeFile file("C:/Users/ibabh/AndroidStudioProjects/quiz_commercial2024/android/app/release-keystore.jks")
-            storePassword 'Ines2010'
-        }
-    }
-
-    buildTypes { // Notez que le bloc release doit être ici
-        release {
-            signingConfig signingConfigs.release
-            shrinkResources true  // Active la suppression des ressources inutilisées
-            minifyEnabled true    // Active la réduction du code inutilisé
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
     }
 }
 
@@ -68,9 +77,7 @@ dependencies {
     implementation 'com.google.android.gms:play-services-auth:21.3.0'
     implementation 'com.android.billingclient:billing:7.1.1'
     implementation 'com.google.firebase:firebase-storage:21.0.1'
-
-    }
-
+}
 
 configurations.all {
     resolutionStrategy.eachDependency { details ->

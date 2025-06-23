@@ -1,0 +1,64 @@
+[33mb25ae52[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m HEAD@{0}: reset: moving to origin/main
+[33m59add27[m HEAD@{1}: commit (merge): resolve conflicts
+[33m4e595ff[m HEAD@{2}: rebase (abort): returning to refs/heads/main
+[33mb25ae52[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m HEAD@{3}: pull --rebase origin main (start): checkout b25ae52250147028234e0e43f0b292357f7c5de6
+[33m4e595ff[m HEAD@{4}: commit: fix(iOS): new firebase plist + build 52
+[33m35ef60a[m HEAD@{5}: rebase (finish): returning to refs/heads/main
+[33m35ef60a[m HEAD@{6}: rebase (continue): Update GoogleService-Info.plist and bump build
+[33m6d8eb45[m HEAD@{7}: pull --rebase origin main (pick): Fix path + bump build
+[33mf897985[m HEAD@{8}: pull --rebase origin main (pick): Fix plist boolean syntax; move file to Runner
+[33mcaab4e2[m HEAD@{9}: pull --rebase origin main (start): checkout caab4e205b4aafdd4b5f3b9f0fa249e1dd518c9d
+[33mbceff8a[m HEAD@{10}: commit: Update GoogleService-Info.plist and bump build
+[33m67b8084[m HEAD@{11}: commit: Fix path + bump build
+[33m5f01479[m HEAD@{12}: commit: Move GoogleService-Info.plist to Runner and bump build to 51
+[33mec5cb7f[m HEAD@{13}: commit: Fix plist boolean syntax; move file to Runner
+[33me34ba7a[m HEAD@{14}: pull --rebase origin main (finish): returning to refs/heads/main
+[33me34ba7a[m HEAD@{15}: pull --rebase origin main (start): checkout e34ba7a2c797978c4b6632fdd7c402bd6de89f31
+[33mf535184[m HEAD@{16}: rebase (abort): returning to refs/heads/main
+[33mbfb60ba[m HEAD@{17}: pull --rebase origin main (start): checkout bfb60baff228d22c105012ccce0698c6d3c579dd
+[33mf535184[m HEAD@{18}: commit: Mise à jour fichiers iOS
+[33m2905fc5[m HEAD@{19}: reset: moving to HEAD
+[33m2905fc5[m HEAD@{20}: reset: moving to origin/main
+[33m78f8117[m[33m ([m[1;32msave-ci-changes[m[33m)[m HEAD@{21}: checkout: moving from save-ci-changes to main
+[33m78f8117[m[33m ([m[1;32msave-ci-changes[m[33m)[m HEAD@{22}: checkout: moving from main to save-ci-changes
+[33m78f8117[m[33m ([m[1;32msave-ci-changes[m[33m)[m HEAD@{23}: commit: ton message de commit ici
+[33m7f44acb[m HEAD@{24}: commit: ton message de commit ici
+[33mf556760[m HEAD@{25}: commit: Supprime .env du repo
+[33mcc15aec[m HEAD@{26}: Branch: renamed refs/heads/main to refs/heads/main
+[33mcc15aec[m HEAD@{28}: commit: first commit
+[33m33e03ce[m HEAD@{29}: merge origin/main: Fast-forward
+[33m25fdf36[m HEAD@{30}: commit: Ajout du fichier podhelper.rb et corrections
+[33mdc2ed26[m HEAD@{31}: commit (merge): Ajout du fichier manquant podhelper.rb
+[33m173eeb9[m HEAD@{32}: commit: Ajout du fichier podhelper.rb manquant
+[33m1c8368c[m HEAD@{33}: commit: Ajout du fichier manquant podhelper.rb
+[33m3311021[m HEAD@{34}: commit: Ajout des fichiers non suivis et modifications
+[33m877f27a[m HEAD@{35}: reset: moving to HEAD
+[33m877f27a[m HEAD@{36}: pull origin main: Fast-forward
+[33mff148ef[m HEAD@{37}: commit: Add or update audio_session dependency
+[33mef662e6[m HEAD@{38}: commit: Add Swift compatibility
+[33m56239f3[m HEAD@{39}: commit: Fixed iOS config for Bitrise
+[33m9a5ae49[m HEAD@{40}: commit: Mise à jour des fichiers iOS et dépendances Flutter
+[33m0fff1d8[m HEAD@{41}: commit: Ajout de podhelper.rb et correction du Podfile
+[33m0080f47[m HEAD@{42}: commit: Correction du Podfile avec workspace explicite et dépendance bidon
+[33m45f3f6a[m HEAD@{43}: commit: Correction du Podfile pour exécuter flutter_export_environment.sh
+[33macd62ce[m HEAD@{44}: commit: Restoration du contenu complet de flutter_export_environment.sh
+[33m31dccc7[m HEAD@{45}: commit: Correction de la syntaxe SYMROOT
+[33ma6817f7[m HEAD@{46}: commit: Ajout ou mise à jour du fichier flutter_export_environment.sh et correction du Podfile
+[33mc84a61c[m HEAD@{47}: commit: Ajout ou mise à jour du fichier flutter_export_environment.sh et correction du Podfile
+[33m17d49f3[m HEAD@{48}: commit: Correction du Podfile avec vérification conditionnelle
+[33mb062afc[m HEAD@{49}: commit: Ajout manuel du fichier flutter_export_environment.sh
+[33m429e238[m HEAD@{50}: commit: Ajout d'une vérification pour flutter_export_environment.sh dans le Podfile
+[33m58af3e9[m HEAD@{51}: commit (amend): Ajout de Podfile et flutter_export_environment.sh
+[33mf6dd7cf[m HEAD@{52}: commit: Ajout de Podfile et flutter_export_environment.sh
+[33m3bf0401[m HEAD@{53}: commit: Fix Podfile and add flutter_export_environment.sh
+[33mc0c0b23[m HEAD@{54}: commit: Add missing iOS files and dependencies
+[33m1d1988d[m HEAD@{55}: commit: Ajout des fichiers nécessaires pour Codemagic
+[33mc56e28a[m HEAD@{56}: commit: Fix Podfile to include flutter_tools
+[33m5987cdd[m HEAD@{57}: commit: Force add .flutter-plugins-dependencies to iOS folder
+[33m06b7d2c[m HEAD@{58}: commit: Add fallback to generate .flutter-plugins-dependencies
+[33m0960dfd[m HEAD@{59}: commit: Fix Podfile to load .flutter-plugins-dependencies
+[33mc0df7b8[m HEAD@{60}: commit: Add Podfile for iOS target
+[33mef9c085[m HEAD@{61}: rebase (abort): returning to refs/heads/main
+[33m3c38b9a[m HEAD@{62}: pull origin main --rebase (start): checkout 3c38b9ae7c6d0b2c0ec902f3c5074a8ce7193f03
+[33mef9c085[m HEAD@{63}: Branch: renamed refs/heads/master to refs/heads/main
+[33mef9c085[m HEAD@{65}: commit (initial): Initial commit

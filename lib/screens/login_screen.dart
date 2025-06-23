@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,8 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import '../ad_manager.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import '../ad_manager.dart';
 import '../logo_widget.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -41,7 +43,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.addListener(() => setState(() {}));
     _passwordController.addListener(() => setState(() {}));
 
-    // ───── Banner AdMob ─────
     _bannerAd = BannerAd(
       adUnitId: AdManager.bannerAdUnitId,
       size: AdSize.banner,
@@ -55,21 +56,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
     _bannerAd.load();
-  }
-
-
-  Future<void> _saveFCMTokenToFirestore(String uid) async {
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .set({'fcmToken': token}, SetOptions(merge: true));
-    }
-  }
-
-  void _changeLanguage(String languageCode) {
-    context.setLocale(Locale(languageCode));
   }
 
   Future<void> _checkAuthenticationStatus() async {
@@ -95,11 +81,44 @@ class _LoginScreenState extends State<LoginScreen> {
       ..setBool('rememberMe', _rememberMe);
   }
 
-  // ──────────────────────────────────────────────────────────── SIGN IN (EMAIL)
+  Future<void> _saveFCMTokenToFirestore(String uid) async {
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set({'fcmToken': token}, SetOptions(merge: true));
+    }
+  }
+
+  Future<void> _ensureUserDocument(User user, {String? displayName}) async {
+    final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final snap = await docRef.get();
+
+    await docRef.set({
+      'name': displayName ?? user.displayName ?? 'Utilisateur',
+      'name_lower': (displayName ?? user.displayName ?? 'Utilisateur').toLowerCase(),
+      'email': user.email ?? '',
+      'photoURL': user.photoURL ?? '',
+    }, SetOptions(merge: true));
+
+    if (!snap.exists) {
+      await docRef.set({
+        'createdAt': FieldValue.serverTimestamp(),
+        'chapters': {},
+        'totalScore': 0,
+        'unlockedLevels': {},
+        'unlockedModules': {},
+        'lastChapterId': '',
+        'scrollPositions': {},
+      }, SetOptions(merge: true));
+    }
+  }
+
   Future<void> _signIn() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Veuillez remplir tous les champs.'.tr())));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Veuillez remplir tous les champs.'.tr())));
       return;
     }
 
@@ -118,18 +137,16 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushNamed(context, '/chapter_menu');
       }
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message!.tr())));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message!.tr())));
     }
   }
 
-  // ───────────────────────────────────────────────────────────── SIGN UP
   Future<void> _signUp() async {
     if (_emailController.text.isEmpty ||
         _passwordController.text.isEmpty ||
         _nameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Veuillez remplir tous les champs.'.tr())));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Veuillez remplir tous les champs.'.tr())));
       return;
     }
 
@@ -158,11 +175,10 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ───────────────────────────────────────────────────────── GOOGLE SIGN-IN
   Future<void> _signInWithGoogle() async {
     try {
       final googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return; // Annulation
+      if (googleUser == null) return;
 
       final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
@@ -174,20 +190,48 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = userCredential.user;
       if (user == null) return;
 
-      // Assure la présence (ou la mise à jour) du document utilisateur
       await _ensureUserDocument(user);
+      await _saveFCMTokenToFirestore(user.uid);
 
-      // Stocke / met à jour le token FCM
+      Navigator.pushNamed(context, '/chapter_menu');
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Erreur: $e'.tr())));
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
+      );
+
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: credential.identityToken,
+        accessToken: credential.authorizationCode,
+      );
+
+      final userCredential = await _auth.signInWithCredential(oauthCredential);
+      final user = userCredential.user;
+      if (user == null) return;
+
+      await _ensureUserDocument(user,
+          displayName: credential.givenName != null
+              ? '${credential.givenName} ${credential.familyName}'
+              : null);
       await _saveFCMTokenToFirestore(user.uid);
 
       Navigator.pushNamed(context, '/chapter_menu');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e'.tr())));
+          SnackBar(content: Text('Erreur Apple Sign-In: $e'.tr())));
     }
   }
 
-  // ───────────────────────────────────────────────────────── UTILITAIRES
+  void _changeLanguage(String languageCode) {
+    context.setLocale(Locale(languageCode));
+  }
+
   Widget _buildLanguageSwitch(String langCode, String imagePath) {
     return InkWell(
       onTap: () => _changeLanguage(langCode),
@@ -204,31 +248,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _ensureUserDocument(User user, {String? displayName}) async {
-    final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    final snap   = await docRef.get();
-
-    // On merge les infos de base + la photo de profil
-    await docRef.set({
-      'name'      : displayName ?? user.displayName ?? 'Utilisateur',
-      'name_lower': (displayName ?? user.displayName ?? 'Utilisateur').toLowerCase(),
-      'email'     : user.email ?? '',
-      'photoURL'  : user.photoURL ?? '',   // ← Ajouté pour stocker l'URL de l'avatar
-    }, SetOptions(merge: true));
-
-    if (!snap.exists) {
-      await docRef.set({
-        'createdAt'      : FieldValue.serverTimestamp(),
-        'chapters'       : {},
-        'totalScore'     : 0,
-        'unlockedLevels' : {},
-        'unlockedModules': {},
-        'lastChapterId'  : '',
-        'scrollPositions': {},
-      }, SetOptions(merge: true));
-    }
-  }
-
   @override
   void dispose() {
     _bannerAd.dispose();
@@ -238,7 +257,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // ────────────────────────────────────────────────────────── UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -291,14 +309,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _isObscured,
                         decoration: InputDecoration(
                           labelText: 'Mot de passe'.tr(),
-                          helperText:
-                          'Au moins 8 caractères, une majuscule, un chiffre.'.tr(),
+                          helperText: 'Au moins 8 caractères, une majuscule, un chiffre.'.tr(),
                           suffixIcon: IconButton(
-                            icon: Icon(_isObscured
-                                ? Icons.visibility
-                                : Icons.visibility_off),
-                            onPressed: () =>
-                                setState(() => _isObscured = !_isObscured),
+                            icon: Icon(
+                                _isObscured ? Icons.visibility : Icons.visibility_off),
+                            onPressed: () => setState(() => _isObscured = !_isObscured),
                           ),
                         ),
                       ),
@@ -312,13 +327,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
                       ElevatedButton.icon(
-                        icon: Icon(_isLoginMode
-                            ? Icons.login
-                            : Icons.person_add,
+                        icon: Icon(_isLoginMode ? Icons.login : Icons.person_add,
                             color: Colors.teal),
-                        label: Text(_isLoginMode
-                            ? 'Se connecter'.tr()
-                            : 'S\'inscrire'.tr()),
+                        label: Text(_isLoginMode ? 'Se connecter'.tr() : 'S\'inscrire'.tr()),
                         onPressed: _isLoginMode ? _signIn : _signUp,
                       ),
                       TextButton(
@@ -334,7 +345,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         label: Text('Connexion avec Google'.tr()),
                         onPressed: _signInWithGoogle,
                       ),
-
+                      if (Platform.isIOS)
+                        ElevatedButton.icon(
+                          icon: SvgPicture.asset('assets/icons/apple-icon-4.png',
+                              width: 24, height: 24),
+                          label: Text('Connexion avec Apple'.tr()),
+                          onPressed: _signInWithApple,
+                        ),
                       const SizedBox(height: 20),
                       Padding(
                         padding: EdgeInsets.only(bottom: 20.0.h),
@@ -350,13 +367,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ),
-
               ),
             ),
           ),
         ],
       ),
-
       bottomNavigationBar: _isBannerAdReady
           ? SizedBox(
         width: _bannerAd.size.width.toDouble(),
@@ -367,3 +382,5 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
+
