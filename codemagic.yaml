@@ -1,0 +1,20 @@
+workflows:
+  build-ios:
+    name: Build iOS with .env from Codemagic secrets
+    environment:
+      flutter: stable
+      xcode: latest
+      vars:
+        OPENAI_API_KEY: $OPENAI_API_KEY
+        FIREBASE_API_KEY: $FIREBASE_API_KEY
+    scripts:
+      - name: 🔧 Setup .env with secret keys
+        script: |
+          echo "OPENAI_API_KEY=$OPENAI_API_KEY" > .env
+          echo "FIREBASE_API_KEY=$FIREBASE_API_KEY" >> .env
+      - name: 📦 Install dependencies
+        script: flutter pub get
+      - name: 🛠️ Build iOS release
+        script: flutter build ios --release
+    artifacts:
+      - build/ios/ipa/*.ipa
