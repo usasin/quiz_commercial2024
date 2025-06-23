@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 
-	<!-- Nom affiché sous l’icône -->
+	<!-- Nom de l'app affiché sous l’icône -->
 	<key>CFBundleDisplayName</key>
 	<string>AI NEGO – Quiz Vente Pro</string>
 
@@ -28,13 +28,13 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
-	<!-- Écrans de lancement -->
+	<!-- Splash / Launch screen -->
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 
-	<!-- Orientations -->
+	<!-- Orientation support -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -49,7 +49,7 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 
-	<!-- Divers -->
+	<!-- Performance & compatibilité -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
@@ -61,7 +61,7 @@
 		<string>audio</string>
 	</array>
 
-	<!-- Permissions -->
+	<!-- Permissions utilisateur -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Nous avons besoin du micro pour la reconnaissance vocale.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
@@ -71,11 +71,11 @@
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Nous utilisons certaines données pour améliorer votre expérience utilisateur.</string>
 
-	<!-- AdMob -->
+	<!-- AdMob (⚠️ pense à valider sur AdMob les apps iOS ET Android séparément) -->
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-1360261396564293~2234086529</string>
 
-	<!-- SKAdNetwork (Google + essentiels) -->
+	<!-- Réseaux de tracking via SKAdNetwork -->
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict><key>SKAdNetworkIdentifier</key><string>cstr6suwn9.skadnetwork</string></dict>
@@ -83,7 +83,7 @@
 		<dict><key>SKAdNetworkIdentifier</key><string>v9wttpbfk9.skadnetwork</string></dict>
 	</array>
 
-	<!-- ATS conforme -->
+	<!-- ATS sécurisé pour les connexions réseau -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -91,3 +91,4 @@
 	</dict>
 </dict>
 </plist>
+

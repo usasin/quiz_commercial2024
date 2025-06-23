@@ -20,19 +20,16 @@
 	<string>quiz-commercial</string>
 	<key>STORAGE_BUCKET</key>
 	<string>quiz-commercial.appspot.com</string>
-
-	<!-- indicateurs booléens -->
 	<key>IS_ADS_ENABLED</key>
-	<false/>
+	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
-	<false/>
+	<false></false>
 	<key>IS_APPINVITE_ENABLED</key>
-	<true/>
+	<true></true>
 	<key>IS_GCM_ENABLED</key>
-	<true/>
+	<true></true>
 	<key>IS_SIGNIN_ENABLED</key>
-	<true/>
-
+	<true></true>
 	<key>GOOGLE_APP_ID</key>
 	<string>1:163745254135:ios:349c87d8e346624e3461f2</string>
 	<key>DATABASE_URL</key>
