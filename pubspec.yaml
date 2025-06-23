@@ -91,7 +91,7 @@ flutter:
     - assets/Animation 3.json
     - assets/Animation continue.json
     - assets/animations/salle de defi.json
-    - .env
+    
     - assets/scripts/immobilier.json
     - assets/scripts/porte_a_porte.json
     - assets/scripts/teleconseillers.json
