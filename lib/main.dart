@@ -174,7 +174,8 @@ class MyApp extends StatelessWidget {
         localizationsDelegates: context.localizationDelegates,
         supportedLocales: context.supportedLocales,
         locale: context.locale,
-        home: const LoginScreen(), // 👈 ici à la place de initialRoute
+        home: SettingsScreen(),
+ // 👈 ici à la place de initialRoute
         routes: {
           '/chapter_menu': (_) => ChapterMenuPage(),
           '/challenge-menu': (_) => const ChallengeHomeMenu(),
