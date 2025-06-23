@@ -347,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       if (Platform.isIOS)
                         ElevatedButton.icon(
-                          icon: SvgPicture.asset('assets/icons/apple-icon-4.png',
+                          icon: SvgPicture.asset('assets/icons/Apple-logo-icon.svg',
                               width: 24, height: 24),
                           label: Text('Connexion avec Apple'.tr()),
                           onPressed: _signInWithApple,
