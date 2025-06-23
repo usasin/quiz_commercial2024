@@ -14,16 +14,11 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-      case TargetPlatform.linux:
+        return ios;
+      default:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for this platform - '
               'you can reconfigure this by running the FlutterFire CLI again.',
-        );
-      default:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions are not supported for this platform.',
         );
     }
   }
@@ -34,6 +29,15 @@ class DefaultFirebaseOptions {
     messagingSenderId: '163745254135',
     projectId: 'quiz-commercial',
     storageBucket: 'quiz-commercial.appspot.com',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyAPYfiUGMN-2ZpcqDax3VoQArcesFy4mPE',
+    appId: '1:163745254135:ios:349c87d8e346624e3461f2',
+    messagingSenderId: '163745254135',
+    projectId: 'quiz-commercial',
+    storageBucket: 'quiz-commercial.appspot.com',
+    iosBundleId: 'com.quizcommercial2024.quizCommercial2024',
   );
 }
 

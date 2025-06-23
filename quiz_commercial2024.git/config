@@ -1,0 +1,9 @@
+[core]
+	repositoryformatversion = 0
+	filemode = false
+	bare = true
+	ignorecase = true
+[remote "origin"]
+	url = https://github.com/usasin/quiz_commercial2024.git
+	fetch = +refs/*:refs/*
+	mirror = true
