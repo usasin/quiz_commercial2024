@@ -93,28 +93,22 @@ void _handleNotificationResponse(NotificationResponse resp) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load();              // ← charge .env
+  await dotenv.load();
   await EasyLocalization.ensureInitialized();
 
-  // Firebase
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } on FirebaseException catch (e) {
     if (e.code != 'duplicate-app') rethrow;
   }
 
-  // Ads
   await MobileAds.instance.initialize();
-
-  // Permission push (iOS & Android 13+)
   await FirebaseMessaging.instance.requestPermission();
 
-  // Runtime permission Android 13+
   if (Platform.isAndroid) {
     await Permission.notification.request();
   }
 
-  // Initialise flutter_local_notifications
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
   const iosInit = DarwinInitializationSettings();
   await _localNotif.initialize(
@@ -122,7 +116,6 @@ Future<void> main() async {
     onDidReceiveNotificationResponse: _handleNotificationResponse,
   );
 
-  // Création du canal Android
   const channel = AndroidNotificationChannel(
     'invites_channel',
     'Invitations',
@@ -133,12 +126,10 @@ Future<void> main() async {
       AndroidFlutterLocalNotificationsPlugin>();
   await androidImpl?.createNotificationChannel(channel);
 
-  // FCM handlers
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   FirebaseMessaging.onMessage.listen(_showLocalNotification);
   FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
-  // Sauvegarde du token FCM + abonnement topic “app_updates”
   FirebaseAuth.instance.authStateChanges().listen((user) async {
     if (user != null) {
       final fcm = FirebaseMessaging.instance;
@@ -170,6 +161,7 @@ Future<void> main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     final theme = Provider.of<ThemeProvider>(context).currentTheme;
@@ -182,9 +174,8 @@ class MyApp extends StatelessWidget {
         localizationsDelegates: context.localizationDelegates,
         supportedLocales: context.supportedLocales,
         locale: context.locale,
-        initialRoute: '/login',
+        home: const LoginScreen(), // 👈 ici à la place de initialRoute
         routes: {
-          '/login': (_) => const LoginScreen(),
           '/chapter_menu': (_) => ChapterMenuPage(),
           '/challenge-menu': (_) => const ChallengeHomeMenu(),
           '/levels': (_) => const LevelsPage(),
@@ -195,8 +186,7 @@ class MyApp extends StatelessWidget {
             onLevelCompleted: () {},
           ),
           '/simulation': (_) => SimulationScreen(chapterId: 'chapters1'),
-          '/compt_rendu': (_) =>
-              CompteRenduScreen(chapterId: 'chapters1'),
+          '/compt_rendu': (_) => CompteRenduScreen(chapterId: 'chapters1'),
           '/profile': (_) => ProfilePage(),
           '/leaderboard': (_) => LeaderboardPage(),
           '/settings': (_) => SettingsScreen(),
@@ -204,7 +194,7 @@ class MyApp extends StatelessWidget {
           '/information': (_) => InformationScreen(),
           '/challenge-lobby': (ctx) {
             final args = ModalRoute.of(ctx)!.settings.arguments
-            as Map<String, dynamic>;
+                as Map<String, dynamic>;
             return ChallengeLobby(
               isCreator: args['isCreator'] as bool,
               challengeId: args['challengeId'] as String,
