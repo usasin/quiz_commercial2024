@@ -1,38 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:provider/provider.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'screens/login_screen.dart';
+import 'theme_provider.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await EasyLocalization.ensureInitialized();
+
+  runApp(
+    EasyLocalization(
+      supportedLocales: const [Locale('en'), Locale('fr')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en'),
+      child: MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ],
+        child: const MyApp(),
+      ),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Test iOS Codemagic',
-      home: const TestHomePage(),
-    );
-  }
-}
-
-class TestHomePage extends StatelessWidget {
-  const TestHomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Test Codemagic iOS'),
-        backgroundColor: Colors.teal,
-      ),
-      body: const Center(
-        child: Text(
-          '✅ Lancement réussi 🎉',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
+    final theme = Provider.of<ThemeProvider>(context).currentTheme;
+    return ScreenUtilInit(
+      designSize: const Size(414, 896),
+      builder: (_, __) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Test UI',
+        theme: theme,
+        localizationsDelegates: context.localizationDelegates,
+        supportedLocales: context.supportedLocales,
+        locale: context.locale,
+        initialRoute: '/login',
+        routes: {
+          '/login': (_) => const LoginScreen(),
+        },
       ),
     );
   }
