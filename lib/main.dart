@@ -172,7 +172,7 @@ class MyApp extends StatelessWidget {
         initialRoute: '/login',
         routes: {
           '/login': (_) => const LoginScreen(),
-          '/chapter_menu': (_) => const ChapterMenuPage(),
+          '/chapter_menu': (_) =>  ChapterMenuPage(),
           '/challenge-menu': (_) => const ChallengeHomeMenu(),
           '/levels': (_) => const LevelsPage(),
           '/lessons': (_) => LessonsScreen(),
