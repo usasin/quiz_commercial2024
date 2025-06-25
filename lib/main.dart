@@ -154,7 +154,7 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  MyApp({super.key}); // ⬅️ PAS const ici
 
   @override
   Widget build(BuildContext context) {
@@ -171,10 +171,10 @@ class MyApp extends StatelessWidget {
         locale: context.locale,
         initialRoute: '/login',
         routes: {
-          '/login': (_) => const LoginScreen(),
-          '/chapter_menu': (_) =>  ChapterMenuPage(),
-          '/challenge-menu': (_) => const ChallengeHomeMenu(),
-          '/levels': (_) => const LevelsPage(),
+          '/login': (_) => LoginScreen(),
+          '/chapter_menu': (_) => ChapterMenuPage(),
+          '/challenge-menu': (_) => ChallengeHomeMenu(),
+          '/levels': (_) => LevelsPage(),
           '/lessons': (_) => LessonsScreen(),
           '/quiz': (_) => QuizScreen(level: 1, chapterId: 'chapters1', onLevelCompleted: () {}),
           '/simulation': (_) => SimulationScreen(chapterId: 'chapters1'),
@@ -198,5 +198,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-
