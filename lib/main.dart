@@ -6,21 +6,27 @@ import 'screens/chapter_menu_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(MyApp()); // ⬅️ NE PAS METTRE const ici !
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Quiz Commercial',
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
+      initialRoute: '/login',
       routes: {
-        '/': (_) => const LoginScreen(),
-        '/chapter_menu': (_) => const ChapterMenuPage(),
+        '/login': (_) => LoginScreen(), // ✅ NE PAS METTRE "const"
+        '/chapter_menu': (_) => ChapterMenuPage(), // ✅ ta vraie page menu
       },
     );
   }
 }
+
