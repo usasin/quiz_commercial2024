@@ -147,7 +147,7 @@ Future<void> main() async {
         providers: [
           ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ],
-        child: const MyApp(),
+        child:  MyApp(),
       ),
     ),
   );
