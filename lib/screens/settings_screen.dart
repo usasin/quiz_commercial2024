@@ -243,24 +243,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
 
                   
-                  const SizedBox(height: 12),
-                  AnimatedGradientButton(
-                    onTap: () async {
-                      await FirebaseAuth.instance.signOut();
-                      Navigator.of(context).pushReplacementNamed('/login');
-                    },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.exit_to_app, color: Colors.white),
-                        const SizedBox(width: 8),
-                        Text(
-                          "Se déconnecter".tr(),
-                          style: const TextStyle(color: Colors.white, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
+                
+                 
 
                   const SizedBox(height: 12),
                   AnimatedGradientButton(
