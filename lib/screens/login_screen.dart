@@ -1,9 +1,10 @@
-// login_screen.dart — refonte UI 2025
+// lib/screens/login_screen.dart — version complète (juil. 2025)
 // ignore_for_file: use_build_context_synchronously, avoid_print
 
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
-
+import 'package:crypto/crypto.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,10 +17,10 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ad_manager.dart';
-import '../logo_widget.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -52,9 +53,9 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadInfo();
     _initBanner();
     if (_auth.currentUser != null) {
-      // auto-redirect si déjà loggé
       WidgetsBinding.instance.addPostFrameCallback(
-              (_) => Navigator.pushReplacementNamed(context, '/chapter_menu'));
+        (_) => Navigator.pushReplacementNamed(context, '/chapter_menu'),
+      );
     }
   }
 
@@ -101,27 +102,33 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /* ******************************************************* */
-  /*  FIREBASE HELPERS                                       */
+  /*  FIRESTORE / USER DOC                                   */
   /* ******************************************************* */
   Future<void> _ensureUserDoc(User u, {String? displayName}) async {
     final ref = FirebaseFirestore.instance.collection('users').doc(u.uid);
     final snap = await ref.get();
-    await ref.set({
-      'name': displayName ?? u.displayName ?? 'Invité',
-      'email': u.email ?? '',
-      'photoURL': u.photoURL ?? '',
-    }, SetOptions(merge: true));
+    await ref.set(
+      {
+        'name': displayName ?? u.displayName ?? 'Invité',
+        'email': u.email ?? '',
+        'photoURL': u.photoURL ?? '',
+      },
+      SetOptions(merge: true),
+    );
 
     if (!snap.exists) {
-      await ref.set({
-        'createdAt': FieldValue.serverTimestamp(),
-        'chapters': {},
-        'totalScore': 0,
-        'unlockedLevels': {},
-        'unlockedModules': {},
-        'lastChapterId': '',
-        'scrollPositions': {},
-      }, SetOptions(merge: true));
+      await ref.set(
+        {
+          'createdAt': FieldValue.serverTimestamp(),
+          'chapters': {},
+          'totalScore': 0,
+          'unlockedLevels': {},
+          'unlockedModules': {},
+          'lastChapterId': '',
+          'scrollPositions': {},
+        },
+        SetOptions(merge: true),
+      );
     }
 
     final token = await FirebaseMessaging.instance.getToken();
@@ -177,13 +184,34 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /* ----- Apple Sign-In (avec nonce SHA-256 obligatoire) --- */
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final rnd = Random.secure();
+    return List.generate(length, (_) => charset[rnd.nextInt(charset.length)])
+        .join();
+  }
+
+  String _sha256ofString(String input) =>
+      sha256.convert(const Utf8Encoder().convert(input)).toString();
+
   Future<void> _apple() async {
     try {
+      final rawNonce = _generateNonce();
+      final hashedNonce = _sha256ofString(rawNonce);
+
       final appleId = await SignInWithApple.getAppleIDCredential(
-          scopes: [AppleIDAuthorizationScopes.email]);
+        scopes: [AppleIDAuthorizationScopes.email],
+        nonce: hashedNonce,
+      );
+
       final cred = OAuthProvider('apple.com').credential(
-          idToken: appleId.identityToken,
-          accessToken: appleId.authorizationCode);
+        idToken: appleId.identityToken,
+        accessToken: appleId.authorizationCode,
+        rawNonce: rawNonce,
+      );
+
       final res = await _auth.signInWithCredential(cred);
       await _ensureUserDoc(res.user!,
           displayName: appleId.givenName ?? res.user!.displayName);
@@ -199,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await _ensureUserDoc(res.user!, displayName: 'Invité');
       Navigator.pushReplacementNamed(context, '/chapter_menu');
     } on FirebaseAuthException catch (e) {
-      _snack('Invité: ${e.message}');
+      _snack('Invité : ${e.message}');
     }
   }
 
@@ -210,10 +238,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   InputDecoration _dec(String label, {Widget? icon}) => InputDecoration(
-    labelText: label,
-    border: const UnderlineInputBorder(),
-    suffixIcon: icon,
-  );
+        labelText: label,
+        border: const UnderlineInputBorder(),
+        suffixIcon: icon,
+      );
 
   /* ******************************************************* */
   /*  BUILD                                                  */
@@ -221,12 +249,14 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       bottomNavigationBar: _bannerReady
           ? SizedBox(
-          height: _banner.size.height.toDouble(),
-          child: AdWidget(ad: _banner))
+              height: _banner.size.height.toDouble(),
+              child: AdWidget(ad: _banner),
+            )
           : null,
       body: Stack(
         children: [
@@ -234,14 +264,16 @@ class _LoginScreenState extends State<LoginScreen> {
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                  colors: [Color(0xff002d74), Color(0xff005ee0)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight),
+                colors: [Color(0xff002d74), Color(0xff005ee0)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
           ),
           BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(color: Colors.black.withOpacity(.2))),
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(color: Colors.black.withOpacity(.2)),
+          ),
           // ---- carte login
           Center(
             child: SingleChildScrollView(
@@ -253,88 +285,107 @@ class _LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(26),
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withOpacity(.25),
-                        blurRadius: 30,
-                        offset: const Offset(0, 14))
+                      color: Colors.black.withOpacity(.25),
+                      blurRadius: 30,
+                      offset: const Offset(0, 14),
+                    )
                   ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-
                     const SizedBox(height: 12),
                     Text(
                       _loginMode ? 'Bienvenue'.tr() : 'Créer un compte'.tr(),
                       style: const TextStyle(
-                          fontSize: 26, fontWeight: FontWeight.w600),
+                        fontSize: 26,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 24),
 
                     // ------------ champs
                     if (!_loginMode)
                       TextField(
-                          controller: _name,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: _dec('Nom'.tr())),
+                        controller: _name,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: _dec('Nom'.tr()),
+                      ),
                     TextField(
-                        controller: _email,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: _dec('Email'.tr())),
+                      controller: _email,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: _dec('Email'.tr()),
+                    ),
                     const SizedBox(height: 14),
                     TextField(
                       controller: _pass,
                       obscureText: _obscure,
-                      decoration: _dec('Mot de passe'.tr(),
-                          icon: IconButton(
-                              icon: Icon(
-                                  _obscure
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  color: colors.primary),
-                              onPressed: () =>
-                                  setState(() => _obscure = !_obscure))),
+                      decoration: _dec(
+                        'Mot de passe'.tr(),
+                        icon: IconButton(
+                          icon: Icon(
+                            _obscure ? Icons.visibility : Icons.visibility_off,
+                            color: colors.primary,
+                          ),
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                        ),
+                      ),
                     ),
 
                     // ------------ remember + bouton
                     const SizedBox(height: 6),
-                    Row(children: [
-                      Checkbox(
+                    Row(
+                      children: [
+                        Checkbox(
                           value: _remember,
                           activeColor: colors.primary,
-                          onChanged: (v) => setState(() => _remember = v!)),
-                      Text('Se souvenir de moi'.tr())
-                    ]),
+                          onChanged: (v) => setState(() => _remember = v!),
+                        ),
+                        Text('Se souvenir de moi'.tr()),
+                      ],
+                    ),
                     const SizedBox(height: 4),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12))),
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       icon: Icon(
                           _loginMode ? Icons.login : Icons.person_add_alt_1),
                       label: Text(
-                          _loginMode ? 'Se connecter'.tr() : 'S’inscrire'.tr()),
+                        _loginMode
+                            ? 'Se connecter'.tr()
+                            : 'S’inscrire'.tr(),
+                      ),
                       onPressed: _loginMode ? _signInMail : _signUpMail,
                     ),
                     TextButton(
-                        onPressed: () =>
-                            setState(() => _loginMode = !_loginMode),
-                        child: Text(_loginMode
+                      onPressed: () =>
+                          setState(() => _loginMode = !_loginMode),
+                      child: Text(
+                        _loginMode
                             ? 'Créer un compte'
-                            : 'Déjà inscrit ? Connectez-vous')
-                            .tr()),
+                            : 'Déjà inscrit ? Connectez-vous',
+                      ).tr(),
+                    ),
 
                     // ------------ SSO
                     const Divider(height: 24),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                          foregroundColor: Colors.black,
-                          backgroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(48),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12))),
-                      icon: SvgPicture.asset('assets/icons/Google.svg',
-                          height: 22),
+                        foregroundColor: Colors.black,
+                        backgroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: SvgPicture.asset(
+                        'assets/icons/Google.svg',
+                        height: 22,
+                      ),
                       label: const Text('Google'),
                       onPressed: _google,
                     ),
@@ -343,17 +394,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         padding: const EdgeInsets.only(top: 8.0),
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black,
-                              minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12))),
+                            backgroundColor: Colors.black,
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                           icon: SvgPicture.asset(
-                              'assets/icons/Apple-logo-icon.svg',
-                              height: 24,
-                              colorFilter: const ColorFilter.mode(
-                                  Colors.white, BlendMode.srcIn)),
-                          label: const Text('Apple',
-                              style: TextStyle(color: Colors.white)),
+                            'assets/icons/Apple-logo-icon.svg',
+                            height: 24,
+                            colorFilter: const ColorFilter.mode(
+                                Colors.white, BlendMode.srcIn),
+                          ),
+                          label: const Text(
+                            'Apple',
+                            style: TextStyle(color: Colors.white),
+                          ),
                           onPressed: _apple,
                         ),
                       ),
@@ -362,21 +418,25 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
-                          minimumSize: const Size.fromHeight(48),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12))),
+                        backgroundColor: Colors.deepPurple,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       icon: const Icon(Icons.videogame_asset),
                       label: const Text('Continuer en invité'),
                       onPressed: _guest,
                     ),
 
                     const SizedBox(height: 18),
-                    Text('© 2025 AI-Nego  •  RGPD ready',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(color: colors.outline)),
+                    Text(
+                      '© 2025 AI-Nego  •  RGPD ready',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(color: colors.outline),
+                    ),
                   ],
                 ),
               ),
