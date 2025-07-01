@@ -1,10 +1,10 @@
 // lib/screens/login_screen.dart — version complète (juil. 2025)
 // ignore_for_file: use_build_context_synchronously, avoid_print
 
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
+import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -21,27 +21,25 @@ import '../ad_manager.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 /*───────────────────────────────────────────────────────────*/
-
 class _LoginScreenState extends State<LoginScreen> {
-  /* ------------- Instances ------------- */
+  /* ------------- instances ------------- */
   final _auth = FirebaseAuth.instance;
   final _googleSignIn = GoogleSignIn();
   final _email = TextEditingController();
   final _pass = TextEditingController();
   final _name = TextEditingController();
 
-  /* ------------- UI states ------------- */
+  /* ------------- UI state ------------- */
   bool _obscure = true;
   bool _remember = false;
   bool _loginMode = true;
 
-  /* ------------- Ad banner ------------- */
+  /* ------------- Ads ------------- */
   late final BannerAd _banner;
   bool _bannerReady = false;
 
@@ -108,6 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _ensureUserDoc(User u, {String? displayName}) async {
     final ref = FirebaseFirestore.instance.collection('users').doc(u.uid);
     final snap = await ref.get();
+
     await ref.set(
       {
         'name': displayName ?? u.displayName ?? 'Invité',
@@ -145,7 +144,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_email.text.isEmpty || _pass.text.isEmpty) return;
     try {
       await _auth.signInWithEmailAndPassword(
-          email: _email.text, password: _pass.text);
+        email: _email.text,
+        password: _pass.text,
+      );
       await _saveInfo();
       await _ensureUserDoc(_auth.currentUser!);
       Navigator.pushReplacementNamed(context, '/chapter_menu');
@@ -158,7 +159,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if ([_name.text, _email.text, _pass.text].any((e) => e.isEmpty)) return;
     try {
       final cred = await _auth.createUserWithEmailAndPassword(
-          email: _email.text, password: _pass.text);
+        email: _email.text,
+        password: _pass.text,
+      );
       await _ensureUserDoc(cred.user!, displayName: _name.text);
       _snack('Inscription réussie, connecte-toi 👍');
       setState(() {
@@ -176,7 +179,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (gUser == null) return;
       final gAuth = await gUser.authentication;
       final cred = GoogleAuthProvider.credential(
-          idToken: gAuth.idToken, accessToken: gAuth.accessToken);
+        idToken: gAuth.idToken,
+        accessToken: gAuth.accessToken,
+      );
       final res = await _auth.signInWithCredential(cred);
       await _ensureUserDoc(res.user!);
       Navigator.pushReplacementNamed(context, '/chapter_menu');
@@ -185,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /* ----- Apple Sign-In (avec nonce SHA-256 obligatoire) --- */
+  /* ---------- Apple Sign-In avec nonce SHA-256 ---------- */
   String _generateNonce([int length = 32]) {
     const charset =
         '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
@@ -195,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _sha256ofString(String input) =>
-      sha256.convert(const Utf8Encoder().convert(input)).toString();
+      sha256.convert(utf8.encode(input)).toString();
 
   Future<void> _apple() async {
     try {
@@ -214,8 +219,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       final res = await _auth.signInWithCredential(cred);
-      await _ensureUserDoc(res.user!,
-          displayName: appleId.givenName ?? res.user!.displayName);
+      await _ensureUserDoc(
+        res.user!,
+        displayName: appleId.givenName ?? res.user!.displayName,
+      );
       Navigator.pushReplacementNamed(context, '/chapter_menu');
     } catch (e) {
       _snack('Erreur Apple : $e');
@@ -282,14 +289,14 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: colors.background.withOpacity(.75),
+                  color: colors.surface.withOpacity(.75),
                   borderRadius: BorderRadius.circular(26),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(.25),
                       blurRadius: 30,
                       offset: const Offset(0, 14),
-                    )
+                    ),
                   ],
                 ),
                 child: Column(
@@ -356,9 +363,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       icon: Icon(
                           _loginMode ? Icons.login : Icons.person_add_alt_1),
                       label: Text(
-                        _loginMode
-                            ? 'Se connecter'.tr()
-                            : 'S’inscrire'.tr(),
+                        _loginMode ? 'Se connecter'.tr() : 'S’inscrire'.tr(),
                       ),
                       onPressed: _loginMode ? _signInMail : _signUpMail,
                     ),
