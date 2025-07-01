@@ -1,6 +1,7 @@
 // lib/screens/login_screen.dart — version complète (juil. 2025)
 // ignore_for_file: use_build_context_synchronously, avoid_print
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
@@ -54,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _initBanner();
     if (_auth.currentUser != null) {
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => Navigator.pushReplacementNamed(context, '/chapter_menu'),
+            (_) => Navigator.pushReplacementNamed(context, '/chapter_menu'),
       );
     }
   }
@@ -238,10 +239,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   InputDecoration _dec(String label, {Widget? icon}) => InputDecoration(
-        labelText: label,
-        border: const UnderlineInputBorder(),
-        suffixIcon: icon,
-      );
+    labelText: label,
+    border: const UnderlineInputBorder(),
+    suffixIcon: icon,
+  );
 
   /* ******************************************************* */
   /*  BUILD                                                  */
@@ -254,9 +255,9 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: Colors.transparent,
       bottomNavigationBar: _bannerReady
           ? SizedBox(
-              height: _banner.size.height.toDouble(),
-              child: AdWidget(ad: _banner),
-            )
+        height: _banner.size.height.toDouble(),
+        child: AdWidget(ad: _banner),
+      )
           : null,
       body: Stack(
         children: [
