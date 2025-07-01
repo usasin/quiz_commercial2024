@@ -2,7 +2,7 @@ name: quiz_commercial2024
 description: A new Flutter project.
 publish_to: 'none'
 
-version: 1.0.86
+version: 1.0.87
 
 environment:
   sdk: '>=3.4.1 <4.0.0'
