@@ -1,4 +1,4 @@
-// login_screen.dart — version “e-mail + invité” stabilisée 2025
+// login_screen.dart — version light (e-mail + invité uniquement) 2025
 // ignore_for_file: use_build_context_synchronously, avoid_print
 
 import 'dart:io';
@@ -8,10 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-// import 'package:google_sign_in/google_sign_in.dart';   // ← désactivé
-// import 'package:sign_in_with_apple/sign_in_with_apple.dart'; // ← désactivé
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ad_manager.dart';
@@ -20,25 +17,23 @@ import '../ad_manager.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  /* ------------- Instances ------------- */
+  /* ------------- Firebase ------------- */
   final _auth = FirebaseAuth.instance;
-  // final _googleSignIn = GoogleSignIn(); // si tu les ré-actives plus tard
   final _email = TextEditingController();
   final _pass  = TextEditingController();
   final _name  = TextEditingController();
 
-  /* ------------- UI ------------- */
-  bool _obscure     = true;
-  bool _remember    = false;
-  bool _loginMode   = true; // true = connexion, false = inscription
+  /* ------------- UI states ------------- */
+  bool _obscure   = true;
+  bool _remember  = false;
+  bool _loginMode = true;         // true = connexion, false = inscription
 
-  /* ------------- Ads ------------- */
+  /* ------------- Ad banner ------------- */
   late final BannerAd _banner;
   bool _bannerReady = false;
 
@@ -51,10 +46,9 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadPrefs();
     _initBanner();
 
-    // ⬇️  Redirection automatique seulement si l’utilisateur
-    //     est déjà connecté ET n’est pas anonyme.
-    final user = _auth.currentUser;
-    if (user != null && !user.isAnonymous) {
+    // Redirige seulement si l’utilisateur est connecté ET non-anonyme
+    final u = _auth.currentUser;
+    if (u != null && !u.isAnonymous) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => Navigator.pushReplacementNamed(context, '/chapter_menu'),
       );
@@ -63,13 +57,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _initBanner() {
     _banner = BannerAd(
-      adUnitId: AdManager.bannerAdUnitId,
-      size: AdSize.banner,
-      listener: BannerAdListener(
-        onAdLoaded: (_) => setState(() => _bannerReady = true),
+      adUnitId : AdManager.bannerAdUnitId,
+      size     : AdSize.banner,
+      request  : const AdRequest(),
+      listener : BannerAdListener(
+        onAdLoaded    : (_) => setState(() => _bannerReady = true),
         onAdFailedToLoad: (ad, err) => ad.dispose(),
       ),
-      request: const AdRequest(),
     )..load();
   }
 
@@ -88,9 +82,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loadPrefs() async {
     final p = await SharedPreferences.getInstance();
     setState(() {
-      _email.text  = p.getString('email')       ?? '';
-      _pass.text   = p.getString('password')    ?? '';
-      _remember    = p.getBool('rememberMe')    ?? false;
+      _email.text = p.getString('email')      ?? '';
+      _pass.text  = p.getString('password')   ?? '';
+      _remember   = p.getBool('rememberMe')   ?? false;
     });
   }
 
@@ -104,27 +98,27 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /* ******************************************************* */
-  /*  FIREBASE HELPERS                                       */
+  /*  FIRESTORE helper                                       */
   /* ******************************************************* */
   Future<void> _ensureUserDoc(User u, {String? displayName}) async {
     final ref  = FirebaseFirestore.instance.collection('users').doc(u.uid);
     final snap = await ref.get();
 
     await ref.set({
-      'name'   : displayName ?? u.displayName ?? 'Invité',
-      'email'  : u.email ?? '',
+      'name'    : displayName ?? u.displayName ?? 'Invité',
+      'email'   : u.email ?? '',
       'photoURL': u.photoURL ?? '',
     }, SetOptions(merge: true));
 
     if (!snap.exists) {
       await ref.set({
         'createdAt'      : FieldValue.serverTimestamp(),
-        'chapters'       : {},
         'totalScore'     : 0,
         'unlockedLevels' : {},
         'unlockedModules': {},
-        'lastChapterId'  : '',
         'scrollPositions': {},
+        'lastChapterId'  : '',
+        'chapters'       : {},
       }, SetOptions(merge: true));
     }
 
@@ -133,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /* ******************************************************* */
-  /*  AUTH – e-mail & invité                                 */
+  /*  AUTH flows                                             */
   /* ******************************************************* */
   Future<void> _signInMail() async {
     if (_email.text.isEmpty || _pass.text.isEmpty) return;
@@ -154,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final cred = await _auth.createUserWithEmailAndPassword(
           email: _email.text.trim(), password: _pass.text);
       await _ensureUserDoc(cred.user!, displayName: _name.text.trim());
-      _snack('Inscription réussie 🎉');
+      _snack('Inscription réussie 🎉 Connecte-toi maintenant.');
       setState(() { _loginMode = true; _pass.clear(); });
     } on FirebaseAuthException catch (e) {
       _snack(e.message ?? 'Erreur d’inscription');
@@ -172,14 +166,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /* ******************************************************* */
-  /*  UI HELPERS                                             */
+  /*  UI helpers                                             */
   /* ******************************************************* */
   void _snack(String m) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   InputDecoration _dec(String label, {Widget? icon}) => InputDecoration(
         labelText: label,
-        border: const UnderlineInputBorder(),
+        border   : const UnderlineInputBorder(),
         suffixIcon: icon,
       );
 
@@ -197,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
           : null,
       body: Stack(
         children: [
-          // ---- fond dégradé flou
+          // Fond dégradé + flou
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -212,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child : Container(color: Colors.black.withOpacity(.20)),
           ),
 
-          // ---- carte login
+          // Carte centrale
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -224,35 +218,33 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /* ---- widget carte ---- */
   Widget _buildCard(ColorScheme colors) {
     return Container(
-      padding   : const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color           : colors.surface.withOpacity(.80),
-        borderRadius    : BorderRadius.circular(26),
-        boxShadow       : [BoxShadow(color: Colors.black26, blurRadius: 28, offset: const Offset(0, 12))],
+        color        : colors.surface.withOpacity(.80),
+        borderRadius : BorderRadius.circular(26),
+        boxShadow    : [BoxShadow(color: Colors.black26, blurRadius: 28, offset: const Offset(0, 12))],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 12),
           Text(
-            _loginMode ? 'Bienvenue'.tr() : 'Créer un compte'.tr(),
-            style    : const TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+            _loginMode ? 'Bienvenue' : 'Créer un compte',
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 24),
 
-          // Champs
           if (!_loginMode)
-            TextField(controller: _name, textCapitalization: TextCapitalization.words, decoration: _dec('Nom'.tr())),
-          TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: _dec('Email'.tr())),
+            TextField(controller: _name, textCapitalization: TextCapitalization.words, decoration: _dec('Nom')),
+          TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: _dec('E-mail')),
           const SizedBox(height: 14),
           TextField(
             controller : _pass,
             obscureText: _obscure,
             decoration : _dec(
-              'Mot de passe'.tr(),
+              'Mot de passe',
               icon: IconButton(
                 icon : Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: colors.primary),
                 onPressed: () => setState(() => _obscure = !_obscure),
@@ -260,11 +252,10 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          // remember + bouton
           const SizedBox(height: 6),
           Row(children: [
             Checkbox(value: _remember, activeColor: colors.primary, onChanged: (v) => setState(() => _remember = v!)),
-            Text('Se souvenir de moi'.tr()),
+            const Text('Se souvenir de moi'),
           ]),
           const SizedBox(height: 4),
           ElevatedButton.icon(
@@ -273,17 +264,16 @@ class _LoginScreenState extends State<LoginScreen> {
               shape     : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             icon  : Icon(_loginMode ? Icons.login : Icons.person_add_alt_1),
-            label : Text(_loginMode ? 'Se connecter'.tr() : 'S’inscrire'.tr()),
+            label : Text(_loginMode ? 'Se connecter' : 'S’inscrire'),
             onPressed: _loginMode ? _signInMail : _signUpMail,
           ),
           TextButton(
             onPressed: () => setState(() => _loginMode = !_loginMode),
-            child   : Text(_loginMode ? 'Créer un compte' : 'Déjà inscrit ? Connectez-vous').tr(),
+            child   : Text(_loginMode ? 'Créer un compte' : 'Déjà inscrit ? Connectez-vous'),
           ),
 
           const Divider(height: 24),
 
-          // Invité
           ElevatedButton.icon(
             style : ElevatedButton.styleFrom(
               backgroundColor: Colors.deepPurple,
