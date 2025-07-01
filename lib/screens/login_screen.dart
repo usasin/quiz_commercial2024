@@ -1,10 +1,11 @@
-// login_screen.dart — version light (e-mail + invité uniquement) 2025
+// login_screen.dart — refonte UI 2025 (e-mail + invité uniquement)
 // ignore_for_file: use_build_context_synchronously, avoid_print
 
-import 'dart:io';
+
 import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -22,8 +23,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  /* ------------- Firebase ------------- */
-  final _auth = FirebaseAuth.instance;
+  /* ------------- Instances ------------- */
+  final _auth  = FirebaseAuth.instance;
   final _email = TextEditingController();
   final _pass  = TextEditingController();
   final _name  = TextEditingController();
@@ -31,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
   /* ------------- UI states ------------- */
   bool _obscure   = true;
   bool _remember  = false;
-  bool _loginMode = true;         // true = connexion, false = inscription
+  bool _loginMode = true;
 
   /* ------------- Ad banner ------------- */
   late final BannerAd _banner;
@@ -43,14 +44,11 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPrefs();
+    _loadInfo();
     _initBanner();
-
-    // Redirige seulement si l’utilisateur est connecté ET non-anonyme
-    final u = _auth.currentUser;
-    if (u != null && !u.isAnonymous) {
+    if (_auth.currentUser != null) {
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => Navigator.pushReplacementNamed(context, '/chapter_menu'),
+            (_) => Navigator.pushReplacementNamed(context, '/chapter_menu'),
       );
     }
   }
@@ -59,11 +57,11 @@ class _LoginScreenState extends State<LoginScreen> {
     _banner = BannerAd(
       adUnitId : AdManager.bannerAdUnitId,
       size     : AdSize.banner,
-      request  : const AdRequest(),
       listener : BannerAdListener(
         onAdLoaded    : (_) => setState(() => _bannerReady = true),
         onAdFailedToLoad: (ad, err) => ad.dispose(),
       ),
+      request: const AdRequest(),
     )..load();
   }
 
@@ -79,16 +77,16 @@ class _LoginScreenState extends State<LoginScreen> {
   /* ******************************************************* */
   /*  PREFERENCES                                            */
   /* ******************************************************* */
-  Future<void> _loadPrefs() async {
-    final p = await SharedPreferences.getInstance();
+  Future<void> _loadInfo() async {
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _email.text = p.getString('email')      ?? '';
-      _pass.text  = p.getString('password')   ?? '';
-      _remember   = p.getBool('rememberMe')   ?? false;
+      _email.text = prefs.getString('email')    ?? '';
+      _pass.text  = prefs.getString('password') ?? '';
+      _remember   = prefs.getBool('rememberMe') ?? false;
     });
   }
 
-  Future<void> _savePrefs() async {
+  Future<void> _saveInfo() async {
     if (!_remember) return;
     final p = await SharedPreferences.getInstance();
     p
@@ -98,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /* ******************************************************* */
-  /*  FIRESTORE helper                                       */
+  /*  FIREBASE HELPERS                                       */
   /* ******************************************************* */
   Future<void> _ensureUserDoc(User u, {String? displayName}) async {
     final ref  = FirebaseFirestore.instance.collection('users').doc(u.uid);
@@ -113,32 +111,34 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!snap.exists) {
       await ref.set({
         'createdAt'      : FieldValue.serverTimestamp(),
+        'chapters'       : {},
         'totalScore'     : 0,
         'unlockedLevels' : {},
         'unlockedModules': {},
-        'scrollPositions': {},
         'lastChapterId'  : '',
-        'chapters'       : {},
+        'scrollPositions': {},
       }, SetOptions(merge: true));
     }
 
-    final fcm = await FirebaseMessaging.instance.getToken();
-    if (fcm != null) ref.set({'fcmToken': fcm}, SetOptions(merge: true));
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) {
+      ref.set({'fcmToken': token}, SetOptions(merge: true));
+    }
   }
 
   /* ******************************************************* */
-  /*  AUTH flows                                             */
+  /*  AUTH FLOWS                                             */
   /* ******************************************************* */
   Future<void> _signInMail() async {
     if (_email.text.isEmpty || _pass.text.isEmpty) return;
     try {
       await _auth.signInWithEmailAndPassword(
           email: _email.text.trim(), password: _pass.text);
-      await _savePrefs();
+      await _saveInfo();
       await _ensureUserDoc(_auth.currentUser!);
       Navigator.pushReplacementNamed(context, '/chapter_menu');
     } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Erreur de connexion');
+      _snack(e.message ?? 'Erreur');
     }
   }
 
@@ -148,10 +148,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final cred = await _auth.createUserWithEmailAndPassword(
           email: _email.text.trim(), password: _pass.text);
       await _ensureUserDoc(cred.user!, displayName: _name.text.trim());
-      _snack('Inscription réussie 🎉 Connecte-toi maintenant.');
-      setState(() { _loginMode = true; _pass.clear(); });
+      _snack('Inscription réussie, connecte-toi 👍');
+      setState(() {
+        _loginMode = true;
+        _pass.clear();
+      });
     } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Erreur d’inscription');
+      _snack(e.message ?? 'Erreur signup');
     }
   }
 
@@ -166,16 +169,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /* ******************************************************* */
-  /*  UI helpers                                             */
+  /*  UI HELPERS                                             */
   /* ******************************************************* */
   void _snack(String m) =>
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   InputDecoration _dec(String label, {Widget? icon}) => InputDecoration(
-        labelText: label,
-        border   : const UnderlineInputBorder(),
-        suffixIcon: icon,
-      );
+    labelText : label,
+    border    : const UnderlineInputBorder(),
+    suffixIcon: icon,
+  );
 
   /* ******************************************************* */
   /*  BUILD                                                  */
@@ -183,15 +186,16 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       bottomNavigationBar: _bannerReady
-          ? SizedBox(height: _banner.size.height.toDouble(), child: AdWidget(ad: _banner))
+          ? SizedBox(
+          height: _banner.size.height.toDouble(),
+          child: AdWidget(ad: _banner))
           : null,
       body: Stack(
         children: [
-          // Fond dégradé + flou
+          // ---- fond dégradé flou
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -202,92 +206,132 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child : Container(color: Colors.black.withOpacity(.20)),
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child : Container(color: Colors.black.withOpacity(.2)),
           ),
 
-          // Carte centrale
+          // ---- carte login
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child  : _buildCard(colors),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color        : colors.surface.withOpacity(.75),
+                  borderRadius : BorderRadius.circular(26),
+                  boxShadow    : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(.25),
+                      blurRadius: 30,
+                      offset: const Offset(0, 14),
+                    )
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 12),
+                    Text(
+                      _loginMode ? 'Bienvenue'.tr() : 'Créer un compte'.tr(),
+                      style: const TextStyle(
+                          fontSize: 26, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 24),
 
-  Widget _buildCard(ColorScheme colors) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color        : colors.surface.withOpacity(.80),
-        borderRadius : BorderRadius.circular(26),
-        boxShadow    : [BoxShadow(color: Colors.black26, blurRadius: 28, offset: const Offset(0, 12))],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 12),
-          Text(
-            _loginMode ? 'Bienvenue' : 'Créer un compte',
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 24),
+                    if (!_loginMode)
+                      TextField(
+                        controller: _name,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: _dec('Nom'.tr()),
+                      ),
+                    TextField(
+                      controller: _email,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: _dec('Email'.tr()),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller : _pass,
+                      obscureText: _obscure,
+                      decoration : _dec(
+                        'Mot de passe'.tr(),
+                        icon: IconButton(
+                          icon: Icon(
+                              _obscure
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: colors.primary),
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure),
+                        ),
+                      ),
+                    ),
 
-          if (!_loginMode)
-            TextField(controller: _name, textCapitalization: TextCapitalization.words, decoration: _dec('Nom')),
-          TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: _dec('E-mail')),
-          const SizedBox(height: 14),
-          TextField(
-            controller : _pass,
-            obscureText: _obscure,
-            decoration : _dec(
-              'Mot de passe',
-              icon: IconButton(
-                icon : Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: colors.primary),
-                onPressed: () => setState(() => _obscure = !_obscure),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _remember,
+                          activeColor: colors.primary,
+                          onChanged: (v) =>
+                              setState(() => _remember = v!),
+                        ),
+                        Text('Se souvenir de moi'.tr()),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: Icon(
+                          _loginMode ? Icons.login : Icons.person_add_alt_1),
+                      label: Text(_loginMode
+                          ? 'Se connecter'.tr()
+                          : 'S’inscrire'.tr()),
+                      onPressed: _loginMode ? _signInMail : _signUpMail,
+                    ),
+                    TextButton(
+                      onPressed: () =>
+                          setState(() => _loginMode = !_loginMode),
+                      child: Text(_loginMode
+                          ? 'Créer un compte'
+                          : 'Déjà inscrit ? Connectez-vous')
+                          .tr(),
+                    ),
+
+                    const Divider(height: 24),
+
+                    // ------------ invité
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.videogame_asset),
+                      label: const Text('Continuer en invité'),
+                      onPressed: _guest,
+                    ),
+
+                    const SizedBox(height: 18),
+                    Text(
+                      '© 2025 AI-Nego  •  RGPD ready',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(color: colors.outline),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-
-          const SizedBox(height: 6),
-          Row(children: [
-            Checkbox(value: _remember, activeColor: colors.primary, onChanged: (v) => setState(() => _remember = v!)),
-            const Text('Se souvenir de moi'),
-          ]),
-          const SizedBox(height: 4),
-          ElevatedButton.icon(
-            style : ElevatedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              shape     : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            icon  : Icon(_loginMode ? Icons.login : Icons.person_add_alt_1),
-            label : Text(_loginMode ? 'Se connecter' : 'S’inscrire'),
-            onPressed: _loginMode ? _signInMail : _signUpMail,
-          ),
-          TextButton(
-            onPressed: () => setState(() => _loginMode = !_loginMode),
-            child   : Text(_loginMode ? 'Créer un compte' : 'Déjà inscrit ? Connectez-vous'),
-          ),
-
-          const Divider(height: 24),
-
-          ElevatedButton.icon(
-            style : ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              minimumSize    : const Size.fromHeight(48),
-              shape          : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            icon : const Icon(Icons.videogame_asset),
-            label: const Text('Continuer en invité'),
-            onPressed: _guest,
-          ),
-
-          const SizedBox(height: 18),
-          Text('© 2025 AI-Nego  •  RGPD ready',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.outline)),
         ],
       ),
     );
