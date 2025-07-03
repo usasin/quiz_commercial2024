@@ -58,18 +58,18 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 
-	<!-- -------------------------------------------------------------------- -->
+	
 	<!-- 2. Modes d’arrière-plan                                              -->
-	<!-- -------------------------------------------------------------------- -->
+	
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
 		<string>remote-notification</string> <!-- pour FCM / notifications push -->
 	</array>
 
-	<!-- -------------------------------------------------------------------- -->
+	
 	<!-- 3. Chaînes « Privacy » (dialogues système)                           -->
-	<!-- -------------------------------------------------------------------- -->
+	
 	<!-- Micro/BT/Speech/Tracking déjà présents -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Nous avons besoin du micro pour la reconnaissance vocale.</string>
@@ -90,9 +90,9 @@
 	<key>NSUserNotificationUsageDescription</key>
 	<string>Nous envoyons des rappels liés à vos quiz.</string>
 
-	<!-- -------------------------------------------------------------------- -->
+	
 	<!-- 4. Google Mobile Ads & ATT                                           -->
-	<!-- -------------------------------------------------------------------- -->
+	
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-1360261396564293~2234086529</string>
 
@@ -114,9 +114,8 @@
 		<!-- Ajoute ici d’autres réseaux si nécessaire -->
 	</array>
 
-	<!-- -------------------------------------------------------------------- -->
 	<!-- 5. ATS (App Transport Security)                                      -->
-	<!-- -------------------------------------------------------------------- -->
+	
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
