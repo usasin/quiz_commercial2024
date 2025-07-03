@@ -133,7 +133,8 @@ class _LoginScreenState extends State<LoginScreen> {
       await _saveInfo();
       await _ensureUserDoc(_auth.currentUser!);
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/chapter_menu');
+      _navKey.currentState?.pushReplacementNamed('/chapter_menu');
+
     } on FirebaseAuthException catch (e) {
       _snack(e.message ?? 'Erreur');
     }
@@ -161,7 +162,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final res = await _auth.signInAnonymously();
       await _ensureUserDoc(res.user!, displayName: 'Invité');
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/chapter_menu');
+      _navKey.currentState?.pushReplacementNamed('/chapter_menu');
+
     } on FirebaseAuthException catch (e) {
       _snack('Invité : ${e.message}');
     }
