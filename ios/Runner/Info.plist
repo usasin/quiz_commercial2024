@@ -2,10 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 1. Infos de base                                                     -->
+	<!-- -------------------------------------------------------------------- -->
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 
-	<!-- Nom de l'app affiché sous l’icône -->
+	<!-- Nom affiché sous l’icône -->
 	<key>CFBundleDisplayName</key>
 	<string>AI NEGO – Quiz Vente Pro</string>
 
@@ -55,13 +58,19 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 
-	<!-- Lecture audio en arrière-plan -->
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 2. Modes d’arrière-plan                                              -->
+	<!-- -------------------------------------------------------------------- -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>remote-notification</string> <!-- pour FCM / notifications push -->
 	</array>
 
-	<!-- Permissions utilisateur -->
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 3. Chaînes « Privacy » (dialogues système)                           -->
+	<!-- -------------------------------------------------------------------- -->
+	<!-- Micro/BT/Speech/Tracking déjà présents -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Nous avons besoin du micro pour la reconnaissance vocale.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
@@ -71,19 +80,43 @@
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Nous utilisons certaines données pour améliorer votre expérience utilisateur.</string>
 
-	<!-- AdMob (⚠️ pense à valider sur AdMob les apps iOS ET Android séparément) -->
+	<!-- Nouvelles clés privacy -->
+	<key>NSCameraUsageDescription</key>
+	<string>Permet de prendre une photo de profil.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Permet de choisir une image dans votre photothèque.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Permet d’enregistrer votre avatar dans la photothèque.</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Nous envoyons des rappels liés à vos quiz.</string>
+
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 4. Google Mobile Ads & ATT                                           -->
+	<!-- -------------------------------------------------------------------- -->
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-1360261396564293~2234086529</string>
 
-	<!-- Réseaux de tracking via SKAdNetwork -->
+	<!-- Réseaux de tracking via SKAdNetwork (liste minimale Google) -->
 	<key>SKAdNetworkItems</key>
 	<array>
-		<dict><key>SKAdNetworkIdentifier</key><string>cstr6suwn9.skadnetwork</string></dict>
-		<dict><key>SKAdNetworkIdentifier</key><string>4fzdc2evr5.skadnetwork</string></dict>
-		<dict><key>SKAdNetworkIdentifier</key><string>v9wttpbfk9.skadnetwork</string></dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>4fzdc2evr5.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>v9wttpbfk9.skadnetwork</string>
+		</dict>
+		<!-- Ajoute ici d’autres réseaux si nécessaire -->
 	</array>
 
-	<!-- ATS sécurisé pour les connexions réseau -->
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 5. ATS (App Transport Security)                                      -->
+	<!-- -------------------------------------------------------------------- -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -91,4 +124,3 @@
 	</dict>
 </dict>
 </plist>
-
