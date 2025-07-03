@@ -51,19 +51,23 @@ class _LoginScreenState extends State<LoginScreen> {
   /* ******************************************************* */
   /*  INIT / DISPOSE                                         */
   /* ******************************************************* */
-  @override
-  void initState() {
-    super.initState();
-    _requestATTIfNeeded();
-    _loadInfo();
-    _initBanner();
-    if (_auth.currentUser != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        Navigator.pushReplacementNamed(context, '/chapter_menu');
-      });
-    }
+@override
+void initState() {
+  super.initState();
+  _requestATTIfNeeded();
+  _loadInfo();
+  _initBanner();
+
+  // ─── CORRECTION ───
+  final u = _auth.currentUser;
+  if (u != null && !u.isAnonymous) { // ← ne saute plus les comptes Invité
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/chapter_menu');
+    });
   }
+}
+
 
   Future<void> _requestATTIfNeeded() async {
     if (Platform.isIOS) {
