@@ -148,10 +148,10 @@ class _App extends StatelessWidget {
       theme: theme,
       initialRoute: '/login',
       routes: {
-        '/login': (_) => const LoginScreen(),
+        '/login': (_) =>  LoginScreen(),
         '/chapter_menu': (_) => ChapterMenuPage(),
-        '/challenge-menu': (_) => const ChallengeHomeMenu(),
-        '/levels': (_) => const LevelsPage(),
+        '/challenge-menu': (_) =>  ChallengeHomeMenu(),
+        '/levels': (_) =>  LevelsPage(),
         '/lessons': (_) => LessonsScreen(),
         '/quiz': (_) => QuizScreen(
               level: 1, chapterId: 'chapters1', onLevelCompleted: () {}),
