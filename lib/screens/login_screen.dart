@@ -2,6 +2,7 @@
 // ignore_for_file: use_build_context_synchronously, avoid_print
 
 import 'dart:ui';
+import 'chapter_menu_page.dart';          // ← ajoute ceci
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
