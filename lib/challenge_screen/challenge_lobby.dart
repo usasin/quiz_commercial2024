@@ -198,6 +198,11 @@ class _ChallengeLobbyState extends State<ChallengeLobby> with SingleTickerProvid
                         }),
                         // Acceptés
                         ...players.map((p) {
+                          // ——— calcule la présence d’une photo valide ———
+                          final hasPhoto = p.photoURL != null &&
+                              p.photoURL!.trim().isNotEmpty &&
+                              p.photoURL!.startsWith('http');
+
                           return RotatingGlowBorder(
                             borderWidth: 3,
                             borderRadius: 12,
@@ -206,22 +211,32 @@ class _ChallengeLobbyState extends State<ChallengeLobby> with SingleTickerProvid
                             child: Container(
                               margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                               padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(12)),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               child: Row(
                                 children: [
                                   CircleAvatar(
                                     radius: 22,
-                                    backgroundImage: p.photoURL != null
+                                    backgroundImage: hasPhoto
                                         ? NetworkImage(p.photoURL!)
-                                        : const AssetImage('assets/images/user.png') as ImageProvider,
+                                        : const AssetImage('assets/images/user.png')
+                                    as ImageProvider,
                                   ),
                                   const SizedBox(width: 12),
-                                  Expanded(child: Text(p.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+                                  Expanded(
+                                    child: Text(
+                                      p.name,
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                           );
                         }),
+
                       ],
                     ),
                   ),
