@@ -9,20 +9,32 @@ class QuestionService {
   /*──────────────────
   │  1) Tirage aléatoire (mode "défi")                │
   └──────────────────*/
+// lib/services/question_service.dart
   Future<List<Map<String, dynamic>>> getRandomQuestions(
       String chapterId, {
         int limit = 10,
       }) async {
-    // on récupère TOUTES les questions du chapitre challenge
-    final snap = await FirebaseFirestore.instance
+    // 1) on récupère tous les levels du chapitre
+    final levelSnap = await FirebaseFirestore.instance
         .collection('chapters_challenge')
         .doc(chapterId)
-        .collection('questions')
+        .collection('levels')
         .get();
 
-    // on mélange puis on garde les {limit} premières
-    final all = snap.docs.toList()..shuffle(_rand);
-    final sample = all.take(limit);
+    // 2) on agrège les questions de chaque level
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> all = [];
+    for (final levelDoc in levelSnap.docs) {
+      final qSnap = await levelDoc.reference
+          .collection('questions')
+          .get();
+      all.addAll(qSnap.docs);
+    }
+
+    if (all.isEmpty) return [];
+
+    // 3) mélange + échantillon aléatoire
+    all.shuffle(_rand);
+    final sample = all.take(limit).toList();
 
     return sample.map((d) {
       final m = d.data();
@@ -34,6 +46,7 @@ class QuestionService {
       };
     }).toList();
   }
+
 
   /*──────────────────
   │ 2) Ancienne méthode (chapters/levels)             │
@@ -62,4 +75,3 @@ class QuestionService {
     }).toList();
   }
 }
-
