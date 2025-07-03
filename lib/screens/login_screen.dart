@@ -134,8 +134,11 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       // Navigation racine :
-      Navigator.of(context, rootNavigator: true)
-              .pushReplacementNamed('/chapter_menu');
+     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+  MaterialPageRoute(builder: (_) => ChapterMenuPage()),
+  (_) => false,           // on vide la pile, impossible de revenir au login
+);
+
 
     } on FirebaseAuthException catch (e) {
       _snack(e.message ?? 'Erreur');
@@ -165,8 +168,11 @@ class _LoginScreenState extends State<LoginScreen> {
       await _ensureUserDoc(res.user!, displayName: 'Invité');
       if (!mounted) return;
 
-      Navigator.of(context, rootNavigator: true)
-              .pushReplacementNamed('/chapter_menu');
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+  MaterialPageRoute(builder: (_) => ChapterMenuPage()),
+  (_) => false,           // on vide la pile, impossible de revenir au login
+);
+
 
     } on FirebaseAuthException catch (e) {
       _snack('Invité : ${e.message}');
