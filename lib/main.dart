@@ -16,7 +16,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'firebase_options.dart';
 import 'theme_provider.dart';
-import 'screens/login_screen.dart';
+
 import 'screens/chapter_menu_page.dart';
 import 'challenge_screen/challenge_home_menu.dart';
 import 'screens/levels_page.dart';
@@ -182,9 +182,9 @@ class MyApp extends StatelessWidget {
         localizationsDelegates: context.localizationDelegates,
         supportedLocales: context.supportedLocales,
         locale: context.locale,
-        initialRoute: '/login',
+        initialRoute: '/chapter_menu',
         routes: {
-          '/login': (_) => const LoginScreen(),
+          
           '/chapter_menu': (_) => ChapterMenuPage(),
           '/challenge-menu': (_) => const ChallengeHomeMenu(),
           '/levels': (_) => const LevelsPage(),
