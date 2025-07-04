@@ -21,7 +21,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ad_manager.dart';
-import 'chapter_menu_page.dart';                   // ← ta page menu
+import 'chapter_menu_page.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,10 +29,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-/*───────────────────────────────────────────────────────────*/
-
 class _LoginScreenState extends State<LoginScreen> {
-  /* ------------- Instances ------------- */
   final _auth         = FirebaseAuth.instance;
   final _googleSignIn = GoogleSignIn();
   final _email        = TextEditingController();
@@ -40,18 +37,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final _name         = TextEditingController();
   final _secure       = const FlutterSecureStorage();
 
-  /* ------------- UI states ------------- */
   bool _obscure   = true;
   bool _remember  = false;
   bool _loginMode = true;
 
-  /* ------------- Ad banner ------------- */
   late final BannerAd _banner;
   bool _bannerReady = false;
+  bool _hasRedirected = false; // pour éviter la double navigation
 
-  /* ******************************************************* */
-  /*  INIT / DISPOSE                                         */
-  /* ******************************************************* */
   @override
   void initState() {
     super.initState();
@@ -59,35 +52,45 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadInfo();
     _initBanner();
 
-    // auto-redirect si déjà connecté (dev / hot-restart)
-    if (_auth.currentUser != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) =>
-          Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => ChapterMenuPage()),
-                  (_) => false));
-    }
+    // auto-redirect seulement après le premier build pour éviter page blanche
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _auth.currentUser != null && !_hasRedirected) {
+        _hasRedirected = true;
+        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => ChapterMenuPage()),
+          (_) => false);
+      }
+    });
   }
 
   Future<void> _requestATTIfNeeded() async {
-    if (Platform.isIOS) {
-      final status =
-      await AppTrackingTransparency.trackingAuthorizationStatus;
-      if (status == TrackingStatus.notDetermined) {
-        await AppTrackingTransparency.requestTrackingAuthorization();
+    // Sécurité supplémentaire pour éviter crash iOS
+    try {
+      if (Platform.isIOS) {
+        final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+        if (status == TrackingStatus.notDetermined) {
+          await AppTrackingTransparency.requestTrackingAuthorization();
+        }
       }
+    } catch (e, st) {
+      debugPrint('ATT Error: $e\n$st');
     }
   }
 
   void _initBanner() {
-    _banner = BannerAd(
-      adUnitId : AdManager.bannerAdUnitId,
-      size     : AdSize.banner,
-      listener : BannerAdListener(
-        onAdLoaded    : (_) => setState(() => _bannerReady = true),
-        onAdFailedToLoad: (ad, err) => ad.dispose(),
-      ),
-      request: const AdRequest(),
-    )..load();
+    try {
+      _banner = BannerAd(
+        adUnitId : AdManager.bannerAdUnitId,
+        size     : AdSize.banner,
+        listener : BannerAdListener(
+          onAdLoaded    : (_) => setState(() => _bannerReady = true),
+          onAdFailedToLoad: (ad, err) => ad.dispose(),
+        ),
+        request: const AdRequest(),
+      )..load();
+    } catch (e) {
+      debugPrint('BannerAd Error: $e');
+    }
   }
 
   @override
@@ -99,9 +102,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /* ******************************************************* */
-  /*  PREFERENCES & SECURE STORAGE                           */
-  /* ******************************************************* */
   Future<void> _loadInfo() async {
     final prefs       = await SharedPreferences.getInstance();
     final storedPass  = await _secure.read(key: 'password');
@@ -126,9 +126,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /* ******************************************************* */
-  /*  FIREBASE HELPERS                                       */
-  /* ******************************************************* */
   Future<void> _ensureUserDoc(User u, {required String displayName}) async {
     final ref  = FirebaseFirestore.instance.collection('users').doc(u.uid);
     final snap = await ref.get();
@@ -153,16 +150,17 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     // FCM token
-    await FirebaseMessaging.instance.requestPermission();
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token != null) {
-      await ref.set({'fcmToken': token}, SetOptions(merge: true));
+    try {
+      await FirebaseMessaging.instance.requestPermission();
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await ref.set({'fcmToken': token}, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('FCM token error: $e');
     }
   }
 
-  /* ******************************************************* */
-  /*  AUTH FLOWS                                             */
-  /* ******************************************************* */
   Future<void> _signInMail() async {
     if (_email.text.isEmpty || _pass.text.isEmpty) return;
     try {
@@ -239,7 +237,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _guest() async {
-    // pseudo obligatoire
     String? nick = _name.text.trim().isNotEmpty ? _name.text.trim() : null;
     if (nick == null) nick = await _askNickname();
     if (nick == null) return;
@@ -253,19 +250,16 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /* ******************************************************* */
-  /*  NAVIGATION helper                                      */
-  /* ******************************************************* */
   void _goToMenu() {
-    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => ChapterMenuPage()),
-          (_) => false,
-    );
+    if (!_hasRedirected) {
+      _hasRedirected = true;
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => ChapterMenuPage()),
+        (_) => false,
+      );
+    }
   }
 
-  /* ******************************************************* */
-  /*  UI HELPERS                                             */
-  /* ******************************************************* */
   void _snack(String m) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
@@ -275,9 +269,6 @@ class _LoginScreenState extends State<LoginScreen> {
     suffixIcon: icon,
   );
 
-  /* ******************************************************* */
-  /*  NONCE HELPERS (Apple)                                  */
-  /* ******************************************************* */
   String _generateNonce([int length = 32]) {
     const charset =
         '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
@@ -289,9 +280,6 @@ class _LoginScreenState extends State<LoginScreen> {
   String _sha256OfString(String input) =>
       sha256.convert(utf8.encode(input)).toString();
 
-  /* ******************************************************* */
-  /*  Nickname dialog                                        */
-  /* ******************************************************* */
   Future<String?> _askNickname() async {
     final ctrl = TextEditingController();
     return showDialog<String>(
@@ -321,9 +309,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /* ******************************************************* */
-  /*  BUILD                                                  */
-  /* ******************************************************* */
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -337,7 +322,6 @@ class _LoginScreenState extends State<LoginScreen> {
           : null,
       body: Stack(
         children: [
-          // ---- fond dégradé flou
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -350,7 +334,6 @@ class _LoginScreenState extends State<LoginScreen> {
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child : Container(color: Colors.black.withOpacity(.2)),
           ),
-          // ---- carte login
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -376,7 +359,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             fontSize: 26, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 24),
 
-                    // ------------ champs
                     if (!_loginMode)
                       TextField(controller       : _name,
                           textCapitalization: TextCapitalization.words,
@@ -398,7 +380,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           )),
                     ),
 
-                    // ------------ remember + bouton
                     const SizedBox(height: 6),
                     Row(children: [
                       Checkbox(
@@ -427,8 +408,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           : 'Déjà inscrit ? Connectez-vous').tr(),
                     ),
 
-                    // ------------ SSO
                     const Divider(height: 24),
+
+                    // Google SSO (protection asset)
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         foregroundColor: Colors.black,
@@ -437,7 +419,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
-                      icon : SvgPicture.asset('assets/icons/Google.svg', height: 22),
+                      icon : _safeSvg('assets/icons/Google.svg', height: 22),
                       label: const Text('Google'),
                       onPressed: _google,
                     ),
@@ -451,18 +433,16 @@ class _LoginScreenState extends State<LoginScreen> {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
                           ),
-                          icon : SvgPicture.asset(
+                          icon : _safeSvg(
                               'assets/icons/Apple-logo-icon.svg',
                               height: 24,
-                              colorFilter: const ColorFilter.mode(
-                                  Colors.white, BlendMode.srcIn)),
+                              color: Colors.white),
                           label: const Text('Apple',
                               style: TextStyle(color: Colors.white)),
                           onPressed: _apple,
                         ),
                       ),
 
-                    // ------------ invité
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
@@ -489,6 +469,21 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Protection SVG asset pour éviter crash si absent
+  Widget _safeSvg(String path, {double? height, Color? color}) {
+    return Builder(
+      builder: (_) {
+        try {
+          return SvgPicture.asset(path,
+              height: height, color: color);
+        } catch (e) {
+          debugPrint('SVG asset error: $e');
+          return const SizedBox.shrink();
+        }
+      },
     );
   }
 }
