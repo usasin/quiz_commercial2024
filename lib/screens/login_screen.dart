@@ -1,176 +1,493 @@
 // lib/screens/login_screen.dart
 // ignore_for_file: use_build_context_synchronously, avoid_print
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+import 'dart:ui' show ImageFilter;
+
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'chapter_menu_page.dart';
+
+import '../ad_manager.dart';
+import 'chapter_menu_page.dart';                   // ← ta page menu
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
+/*───────────────────────────────────────────────────────────*/
+
 class _LoginScreenState extends State<LoginScreen> {
-  final _auth = FirebaseAuth.instance;
-  final _email = TextEditingController();
-  final _pass  = TextEditingController();
-  final _name  = TextEditingController();
+  /* ------------- Instances ------------- */
+  final _auth         = FirebaseAuth.instance;
+  final _googleSignIn = GoogleSignIn();
+  final _email        = TextEditingController();
+  final _pass         = TextEditingController();
+  final _name         = TextEditingController();
+  final _secure       = const FlutterSecureStorage();
 
-  bool _obscure     = true;
-  bool _rememberMe  = false;
-  bool _loginMode   = true; // true = login, false = signup
+  /* ------------- UI states ------------- */
+  bool _obscure   = true;
+  bool _remember  = false;
+  bool _loginMode = true;
 
-  /* ─────────────────────────── helpers ─────────────────────────── */
+  /* ------------- Ad banner ------------- */
+  late final BannerAd _banner;
+  bool _bannerReady = false;
 
-  Future<void> _ensureUserDoc(User u, {String? displayName}) async {
+  /* ******************************************************* */
+  /*  INIT / DISPOSE                                         */
+  /* ******************************************************* */
+  @override
+  void initState() {
+    super.initState();
+    _requestATTIfNeeded();
+    _loadInfo();
+    _initBanner();
+
+    // auto-redirect si déjà connecté (dev / hot-restart)
+    if (_auth.currentUser != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) =>
+          Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => ChapterMenuPage()),
+                  (_) => false));
+    }
+  }
+
+  Future<void> _requestATTIfNeeded() async {
+    if (Platform.isIOS) {
+      final status =
+      await AppTrackingTransparency.trackingAuthorizationStatus;
+      if (status == TrackingStatus.notDetermined) {
+        await AppTrackingTransparency.requestTrackingAuthorization();
+      }
+    }
+  }
+
+  void _initBanner() {
+    _banner = BannerAd(
+      adUnitId : AdManager.bannerAdUnitId,
+      size     : AdSize.banner,
+      listener : BannerAdListener(
+        onAdLoaded    : (_) => setState(() => _bannerReady = true),
+        onAdFailedToLoad: (ad, err) => ad.dispose(),
+      ),
+      request: const AdRequest(),
+    )..load();
+  }
+
+  @override
+  void dispose() {
+    _banner.dispose();
+    _email.dispose();
+    _pass.dispose();
+    _name.dispose();
+    super.dispose();
+  }
+
+  /* ******************************************************* */
+  /*  PREFERENCES & SECURE STORAGE                           */
+  /* ******************************************************* */
+  Future<void> _loadInfo() async {
+    final prefs       = await SharedPreferences.getInstance();
+    final storedPass  = await _secure.read(key: 'password');
+    if (!mounted) return;
+    setState(() {
+      _email.text = prefs.getString('email') ?? '';
+      _pass.text  = storedPass ?? '';
+      _remember   = prefs.getBool('rememberMe') ?? false;
+    });
+  }
+
+  Future<void> _saveInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_remember) {
+      await prefs.setString('email', _email.text);
+      await prefs.setBool  ('rememberMe', true);
+      await _secure.write  (key: 'password', value: _pass.text);
+    } else {
+      await prefs.remove('email');
+      await prefs.remove('rememberMe');
+      await _secure.delete(key: 'password');
+    }
+  }
+
+  /* ******************************************************* */
+  /*  FIREBASE HELPERS                                       */
+  /* ******************************************************* */
+  Future<void> _ensureUserDoc(User u, {required String displayName}) async {
     final ref  = FirebaseFirestore.instance.collection('users').doc(u.uid);
     final snap = await ref.get();
 
     await ref.set({
-      'name'     : displayName ?? u.displayName ?? 'Invité',
-      'email'    : u.email ?? '',
-      'photoURL' : u.photoURL ?? '',
+      'name'      : displayName,
+      'name_lower': displayName.toLowerCase(),
+      'email'     : u.email ?? '',
+      'photoURL'  : u.photoURL ?? '',
     }, SetOptions(merge: true));
 
     if (!snap.exists) {
       await ref.set({
         'createdAt'      : FieldValue.serverTimestamp(),
-        'totalScore'     : 0,
         'chapters'       : {},
+        'totalScore'     : 0,
         'unlockedLevels' : {},
+        'unlockedModules': {},
+        'lastChapterId'  : '',
+        'scrollPositions': {},
       }, SetOptions(merge: true));
     }
 
+    // FCM token
+    await FirebaseMessaging.instance.requestPermission();
     final token = await FirebaseMessaging.instance.getToken();
     if (token != null) {
       await ref.set({'fcmToken': token}, SetOptions(merge: true));
     }
   }
 
-  void _snack(String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-
-  Future<void> _loginEmail() async {
+  /* ******************************************************* */
+  /*  AUTH FLOWS                                             */
+  /* ******************************************************* */
+  Future<void> _signInMail() async {
     if (_email.text.isEmpty || _pass.text.isEmpty) return;
     try {
       await _auth.signInWithEmailAndPassword(
-        email: _email.text.trim(),
-        password: _pass.text,
-      );
-      await _ensureUserDoc(_auth.currentUser!);
-      if (_rememberMe) {
-        final p = await SharedPreferences.getInstance();
-        p
-          ..setString('email', _email.text)
-          ..setString('password', _pass.text)
-          ..setBool('rememberMe', true);
-      }
-      Navigator.pushReplacementNamed(context, '/chapter_menu');
+          email: _email.text.trim(), password: _pass.text);
+      await _saveInfo();
+      await _ensureUserDoc(_auth.currentUser!,
+          displayName: _auth.currentUser!.displayName ?? 'Joueur');
+      _goToMenu();
     } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Erreur de connexion');
+      _snack(e.message ?? 'Erreur');
     }
   }
 
-  Future<void> _signupEmail() async {
-    if ([_name.text, _email.text, _pass.text].any((v) => v.isEmpty)) return;
+  Future<void> _signUpMail() async {
+    if ([_name.text, _email.text, _pass.text].any((e) => e.isEmpty)) return;
     try {
       final cred = await _auth.createUserWithEmailAndPassword(
-        email: _email.text.trim(),
-        password: _pass.text,
-      );
+          email: _email.text.trim(), password: _pass.text);
       await _ensureUserDoc(cred.user!, displayName: _name.text.trim());
-      _snack('Inscription réussie, connectez-vous 👍');
+      _snack('Inscription réussie 👍');
       setState(() {
         _loginMode = true;
         _pass.clear();
       });
     } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Erreur inscription');
+      _snack(e.message ?? 'Erreur signup');
+    }
+  }
+
+  Future<void> _google() async {
+    try {
+      final gUser = await _googleSignIn.signIn();
+      if (gUser == null) return;
+      final gAuth = await gUser.authentication;
+      final cred  = GoogleAuthProvider.credential(
+          idToken: gAuth.idToken, accessToken: gAuth.accessToken);
+      final res   = await _auth.signInWithCredential(cred);
+      await _ensureUserDoc(res.user!, displayName: res.user!.displayName ?? 'GoogleUser');
+      _goToMenu();
+    } catch (e) {
+      _snack('Erreur Google : $e');
+    }
+  }
+
+  Future<void> _apple() async {
+    try {
+      final rawNonce = _generateNonce();
+      final nonce    = _sha256OfString(rawNonce);
+
+      final appleId  = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName
+        ],
+        nonce: nonce,
+      );
+
+      final cred = OAuthProvider('apple.com').credential(
+        idToken   : appleId.identityToken,
+        rawNonce  : rawNonce,
+      );
+
+      final res  = await _auth.signInWithCredential(cred);
+      final nick = [
+        appleId.givenName,
+        appleId.familyName
+      ].where((e) => e != null && e.isNotEmpty).join(' ').trim();
+      await _ensureUserDoc(res.user!, displayName: nick.isEmpty ? 'AppleUser' : nick);
+      _goToMenu();
+    } catch (e) {
+      _snack('Erreur Apple : $e');
     }
   }
 
   Future<void> _guest() async {
+    // pseudo obligatoire
+    String? nick = _name.text.trim().isNotEmpty ? _name.text.trim() : null;
+    if (nick == null) nick = await _askNickname();
+    if (nick == null) return;
+
     try {
       final res = await _auth.signInAnonymously();
-      await _ensureUserDoc(res.user!, displayName: 'Invité');
-      Navigator.pushReplacementNamed(context, '/chapter_menu');
+      await _ensureUserDoc(res.user!, displayName: nick);
+      _goToMenu();
     } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Erreur invité');
+      _snack('Invité : ${e.message}');
     }
   }
 
-  /* ─────────────────────────── build ─────────────────────────── */
+  /* ******************************************************* */
+  /*  NAVIGATION helper                                      */
+  /* ******************************************************* */
+  void _goToMenu() {
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => ChapterMenuPage()),
+          (_) => false,
+    );
+  }
 
+  /* ******************************************************* */
+  /*  UI HELPERS                                             */
+  /* ******************************************************* */
+  void _snack(String m) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  InputDecoration _dec(String label, {Widget? icon}) => InputDecoration(
+    labelText : label,
+    border    : const UnderlineInputBorder(),
+    suffixIcon: icon,
+  );
+
+  /* ******************************************************* */
+  /*  NONCE HELPERS (Apple)                                  */
+  /* ******************************************************* */
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final rand = Random.secure();
+    return List.generate(
+        length, (_) => charset[rand.nextInt(charset.length)]).join();
+  }
+
+  String _sha256OfString(String input) =>
+      sha256.convert(utf8.encode(input)).toString();
+
+  /* ******************************************************* */
+  /*  Nickname dialog                                        */
+  /* ******************************************************* */
+  Future<String?> _askNickname() async {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Choisis un pseudo'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 20,
+          decoration: const InputDecoration(hintText: 'Ex. : SuperVendeur'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler')),
+          ElevatedButton(
+            onPressed: () {
+              final n = ctrl.text.trim();
+              if (n.length < 3) return;
+              Navigator.pop(context, n);
+            },
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /* ******************************************************* */
+  /*  BUILD                                                  */
+  /* ******************************************************* */
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _loginMode ? 'Connexion' : 'Créer un compte',
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 24),
-              if (!_loginMode)
-                TextField(
-                  controller: _name,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(labelText: 'Nom'),
-                ),
-              TextField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Email'),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _pass,
-                obscureText: _obscure,
-                decoration: InputDecoration(
-                  labelText: 'Mot de passe',
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  Checkbox(
-                    value: _rememberMe,
-                    onChanged: (v) => setState(() => _rememberMe = v!),
-                  ),
-                  const Text('Se souvenir de moi'),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                icon: Icon(_loginMode ? Icons.login : Icons.person_add),
-                label: Text(_loginMode ? 'Se connecter' : 'S’inscrire'),
-                onPressed: _loginMode ? _loginEmail : _signupEmail,
-              ),
-              TextButton(
-                onPressed: () => setState(() => _loginMode = !_loginMode),
-                child: Text(_loginMode
-                    ? 'Créer un compte'
-                    : 'Déjà inscrit ? Connexion'),
-              ),
-              const Divider(height: 32),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
-                icon: const Icon(Icons.videogame_asset),
-                label: const Text('Continuer en invité'),
-                onPressed: _guest,
-              ),
-            ],
+      backgroundColor: Colors.transparent,
+      bottomNavigationBar: _bannerReady
+          ? SizedBox(
+          height: _banner.size.height.toDouble(),
+          child : AdWidget(ad: _banner))
+          : null,
+      body: Stack(
+        children: [
+          // ---- fond dégradé flou
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [Color(0xff002d74), Color(0xff005ee0)],
+                  begin : Alignment.topLeft,
+                  end   : Alignment.bottomRight),
+            ),
           ),
-        ),
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child : Container(color: Colors.black.withOpacity(.2)),
+          ),
+          // ---- carte login
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color       : colors.background.withOpacity(.75),
+                  borderRadius: BorderRadius.circular(26),
+                  boxShadow   : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(.25),
+                      blurRadius: 30,
+                      offset: const Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 12),
+                    Text(_loginMode ? 'Bienvenue'.tr() : 'Créer un compte'.tr(),
+                        style: const TextStyle(
+                            fontSize: 26, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 24),
+
+                    // ------------ champs
+                    if (!_loginMode)
+                      TextField(controller       : _name,
+                          textCapitalization: TextCapitalization.words,
+                          decoration        : _dec('Nom'.tr())),
+                    TextField(controller   : _email,
+                        keyboardType : TextInputType.emailAddress,
+                        decoration   : _dec('Email'.tr())),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller : _pass,
+                      obscureText: _obscure,
+                      decoration : _dec('Mot de passe'.tr(),
+                          icon: IconButton(
+                            icon : Icon(_obscure ? Icons.visibility
+                                : Icons.visibility_off,
+                                color: colors.primary),
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
+                          )),
+                    ),
+
+                    // ------------ remember + bouton
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      Checkbox(
+                          value     : _remember,
+                          activeColor: colors.primary,
+                          onChanged : (v) => setState(() => _remember = v!)),
+                      Text('Se souvenir de moi'.tr()),
+                    ]),
+                    const SizedBox(height: 4),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        shape     : RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon : Icon(_loginMode ? Icons.login
+                          : Icons.person_add_alt_1),
+                      label: Text(_loginMode ? 'Se connecter'.tr()
+                          : 'S’inscrire'.tr()),
+                      onPressed: _loginMode ? _signInMail : _signUpMail,
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _loginMode = !_loginMode),
+                      child: Text(_loginMode
+                          ? 'Créer un compte'
+                          : 'Déjà inscrit ? Connectez-vous').tr(),
+                    ),
+
+                    // ------------ SSO
+                    const Divider(height: 24),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        foregroundColor: Colors.black,
+                        backgroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon : SvgPicture.asset('assets/icons/Google.svg', height: 22),
+                      label: const Text('Google'),
+                      onPressed: _google,
+                    ),
+                    if (Platform.isIOS)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon : SvgPicture.asset(
+                              'assets/icons/Apple-logo-icon.svg',
+                              height: 24,
+                              colorFilter: const ColorFilter.mode(
+                                  Colors.white, BlendMode.srcIn)),
+                          label: const Text('Apple',
+                              style: TextStyle(color: Colors.white)),
+                          onPressed: _apple,
+                        ),
+                      ),
+
+                    // ------------ invité
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon : const Icon(Icons.videogame_asset),
+                      label: const Text('Continuer en invité'),
+                      onPressed: _guest,
+                    ),
+
+                    const SizedBox(height: 18),
+                    Text('© 2025 AI-Nego  •  RGPD ready',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(color: colors.outline)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
