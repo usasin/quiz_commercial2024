@@ -1,15 +1,18 @@
-// lib/main.dart — léger, FCM + notifications locales, sans Ads
-// ignore_for_file: avoid_print
+// lib/main.dart
 
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'firebase_options.dart';
 import 'theme_provider.dart';
@@ -28,162 +31,189 @@ import 'screens/information_screen.dart';
 import 'leaderboard_page.dart';
 import 'challenge_screen/challenge_lobby.dart';
 
-/* ─────────────────── NOTIFICATIONS / FCM ─────────────────── */
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final FlutterLocalNotificationsPlugin _localNotif = FlutterLocalNotificationsPlugin();
 
-final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
-final FlutterLocalNotificationsPlugin _localNotif =
-    FlutterLocalNotificationsPlugin();
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage msg) async {
+  if (Firebase.apps.isEmpty) {
+    try {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    } on FirebaseException catch (e) {
+      if (e.code != 'duplicate-app') rethrow;
+    }
+  }
+  _showLocalNotification(msg);
+}
 
-Future<void> _showLocal(RemoteMessage msg) async {
-  final n = msg.notification;
-  if (n == null) return;
-
-  const android = AndroidNotificationDetails(
+void _showLocalNotification(RemoteMessage msg) {
+  final notif = msg.notification;
+  if (notif == null) return;
+  const androidDetails = AndroidNotificationDetails(
     'invites_channel',
     'Invitations',
     channelDescription: 'Canal des invitations',
     importance: Importance.max,
     priority: Priority.high,
   );
-  const ios = DarwinNotificationDetails();
-
-  await _localNotif.show(
-    n.hashCode,
-    n.title,
-    n.body,
-    const NotificationDetails(android: android, iOS: ios),
+  const iosDetails = DarwinNotificationDetails();
+  _localNotif.show(
+    notif.hashCode,
+    notif.title,
+    notif.body,
+    const NotificationDetails(android: androidDetails, iOS: iosDetails),
     payload: msg.data['challengeId'],
   );
 }
 
-Future<void> _bgHandler(RemoteMessage msg) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+void _handleMessageOpenedApp(RemoteMessage msg) {
+  final data = msg.data;
+  navigatorKey.currentState?.pushNamed(
+    '/challenge-lobby',
+    arguments: {
+      'isCreator': false,
+      'challengeId': data['challengeId'],
+      'levelId': data['levelId'],
+      'chapterId': data['chapterId'],
+    },
   );
-  await _showLocal(msg);
 }
 
-void _onForeground(RemoteMessage msg) => _showLocal(msg);
-
-void _onOpened(RemoteMessage msg) {
-  final d = msg.data;
-  _navKey.currentState?.pushNamed('/challenge-lobby', arguments: {
-    'isCreator': false,
-    'challengeId': d['challengeId'],
-    'levelId': d['levelId'],
-    'chapterId': d['chapterId'],
-  });
+void _handleNotificationResponse(NotificationResponse resp) {
+  final payload = resp.payload;
+  if (payload != null) {
+    navigatorKey.currentState?.pushNamed(
+      '/challenge-lobby',
+      arguments: {
+        'isCreator': false,
+        'challengeId': payload,
+      },
+    );
+  }
 }
-
-void _onLocalTap(NotificationResponse resp) {
-  if (resp.payload == null) return;
-  _navKey.currentState?.pushNamed('/challenge-lobby', arguments: {
-    'isCreator': false,
-    'challengeId': resp.payload,
-  });
-}
-
-/* ───────────────────────── MAIN ───────────────────────── */
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env"); // Ceci est correct
+  await EasyLocalization.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Firebase
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+  }
 
-  // Permission FCM
+  // Ads
+  await MobileAds.instance.initialize();
+
+  // Permission push (iOS & Android 13+)
   await FirebaseMessaging.instance.requestPermission();
 
-  // flutter_local_notifications
-  const initAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const initIOS = DarwinInitializationSettings();
+  // Runtime permission Android 13+
+  if (Platform.isAndroid) {
+    await Permission.notification.request();
+  }
+
+  // Initialise flutter_local_notifications
+  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+  const iosInit = DarwinInitializationSettings();
   await _localNotif.initialize(
-    const InitializationSettings(android: initAndroid, iOS: initIOS),
-    onDidReceiveNotificationResponse: _onLocalTap,
+    const InitializationSettings(android: androidInit, iOS: iosInit),
+    onDidReceiveNotificationResponse: _handleNotificationResponse,
   );
 
-  // Android channel
+  // Création du canal Android
   const channel = AndroidNotificationChannel(
     'invites_channel',
     'Invitations',
-    description: 'Canal des invitations',
+    description: 'Canal pour les invitations de défi',
     importance: Importance.high,
   );
-  await _localNotif
-      .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(channel);
+  final androidImpl = _localNotif.resolvePlatformSpecificImplementation<
+      AndroidFlutterLocalNotificationsPlugin>();
+  await androidImpl?.createNotificationChannel(channel);
 
   // FCM handlers
-  FirebaseMessaging.onBackgroundMessage(_bgHandler);
-  FirebaseMessaging.onMessage.listen(_onForeground);
-  FirebaseMessaging.onMessageOpenedApp.listen(_onOpened);
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  FirebaseMessaging.onMessage.listen(_showLocalNotification);
+  FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
-  // Sauvegarde du token FCM dès connexion
-  FirebaseAuth.instance.authStateChanges().listen((u) async {
-    if (u == null) return;
-    final t = await FirebaseMessaging.instance.getToken();
-    if (t != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(u.uid)
-          .set({'fcmToken': t}, SetOptions(merge: true));
+  // Sauvegarde du token FCM + abonnement topic “app_updates”
+  FirebaseAuth.instance.authStateChanges().listen((user) async {
+    if (user != null) {
+      final fcm = FirebaseMessaging.instance;
+      final token = await fcm.getToken();
+      if (token != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set({'fcmToken': token}, SetOptions(merge: true));
+      }
+      await fcm.subscribeToTopic('app_updates');
     }
   });
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
-      child: const _App(),
+    EasyLocalization(
+      supportedLocales: const [Locale('en'), Locale('fr')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en'),
+      child: MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ],
+        child: const MyApp(),
+      ),
     ),
   );
 }
 
-/* ─────────────────────── ROOT APP ─────────────────────── */
-
-class _App extends StatelessWidget {
-  const _App({super.key});
-
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<ThemeProvider>().currentTheme;
-
-    return MaterialApp(
-      navigatorKey: _navKey,
-      debugShowCheckedModeBanner: false,
-      title: 'Quiz Commercial',
-      theme: theme,
-      initialRoute: '/login',
-      routes: {
-        '/login': (_) => const LoginScreen(),
-        '/chapter_menu': (_) => ChapterMenuPage(),
-        '/challenge-menu': (_) => const ChallengeHomeMenu(),
-        '/levels': (_) => const LevelsPage(),
-        '/lessons': (_) => LessonsScreen(),
-        '/quiz': (_) => QuizScreen(
-              level: 1,
-              chapterId: 'chapters1',
-              onLevelCompleted: () {},
-            ),
-        '/simulation': (_) => SimulationScreen(chapterId: 'chapters1'),
-        '/compt_rendu': (_) => CompteRenduScreen(chapterId: 'chapters1'),
-        '/profile': (_) => ProfilePage(),
-        '/leaderboard': (_) => LeaderboardPage(),
-        '/settings': (_) => SettingsScreen(),
-        '/about': (_) => AboutScreen(),
-        '/information': (_) => InformationScreen(),
-        '/challenge-lobby': (ctx) {
-          final a =
-              ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
-          return ChallengeLobby(
-            isCreator: a['isCreator'] as bool,
-            challengeId: a['challengeId'] as String,
-            levelId: a['levelId'] as String? ?? '',
-            chapterId: a['chapterId'] as String? ?? '',
-          );
+    final theme = Provider.of<ThemeProvider>(context).currentTheme;
+    return ScreenUtilInit(
+      designSize: const Size(414, 896),
+      builder: (_, __) => MaterialApp(
+        navigatorKey: navigatorKey,
+        title: 'Quiz Commercial',
+        theme: theme,
+        localizationsDelegates: context.localizationDelegates,
+        supportedLocales: context.supportedLocales,
+        locale: context.locale,
+        initialRoute: '/login',
+        routes: {
+          '/login': (_) => const LoginScreen(),
+          '/chapter_menu': (_) => ChapterMenuPage(),
+          '/challenge-menu': (_) => const ChallengeHomeMenu(),
+          '/levels': (_) => const LevelsPage(),
+          '/lessons': (_) => LessonsScreen(),
+          '/quiz': (_) => QuizScreen(
+            level: 1,
+            chapterId: 'chapters1',
+            onLevelCompleted: () {},
+          ),
+          '/simulation': (_) => SimulationScreen(chapterId: 'chapters1'),
+          '/compt_rendu': (_) =>
+              CompteRenduScreen(chapterId: 'chapters1'),
+          '/profile': (_) => ProfilePage(),
+          '/leaderboard': (_) => LeaderboardPage(),
+          '/settings': (_) => SettingsScreen(),
+          '/about': (_) => AboutScreen(),
+          '/information': (_) => InformationScreen(),
+          '/challenge-lobby': (ctx) {
+            final args = ModalRoute.of(ctx)!.settings.arguments
+            as Map<String, dynamic>;
+            return ChallengeLobby(
+              isCreator: args['isCreator'] as bool,
+              challengeId: args['challengeId'] as String,
+              levelId: args['levelId'] as String,
+              chapterId: args['chapterId'] as String,
+            );
+          },
         },
-      },
+      ),
     );
   }
 }
