@@ -8,10 +8,8 @@ import 'screens/levels_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  runApp(MyApp()); // NE PAS METTRE const ici
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  runApp(MyApp()); // PAS const ici
 }
 
 class MyApp extends StatelessWidget {
@@ -22,9 +20,9 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
-        '/': (_) => const LoginScreen(),
-        '/chapter_menu': (_) => const ChapterMenuPage(),
-        '/levels': (_) => const LevelsPage(),
+        '/': (_) => LoginScreen(), // 🔁 ENLEVER const
+        '/chapter_menu': (_) => ChapterMenuPage(),
+        '/levels': (_) => LevelsPage(),
       },
     );
   }
