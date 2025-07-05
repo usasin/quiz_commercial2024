@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+
 import 'screens/login_screen.dart';
 import 'screens/chapter_menu_page.dart';
-import 'screens/levels_page.dart'; // 👈 Ajout de LevelsPage
+import 'screens/levels_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(MyApp()); // ⬅️ PAS const ici
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  runApp(MyApp()); // NE PAS METTRE const ici
 }
 
 class MyApp extends StatelessWidget {
@@ -21,7 +24,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (_) => const LoginScreen(),
         '/chapter_menu': (_) => const ChapterMenuPage(),
-        '/levels': (_) => const LevelsPage(), // 👈 Ajout ici
+        '/levels': (_) => const LevelsPage(),
       },
     );
   }
