@@ -50,8 +50,7 @@ dependencies:
   flutter_staggered_animations: ^1.1.1
   sign_in_with_apple: ^7.0.1
   crypto: ^3.0.6
-  flutter_secure_storage: ^9.2.4
-  app_tracking_transparency: ^2.0.6+1
+ 
 dev_dependencies:
   flutter_test:
     sdk: flutter
