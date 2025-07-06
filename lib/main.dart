@@ -1,28 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-
-import 'screens/login_screen.dart';
-import 'screens/chapter_menu_page.dart';
-import 'screens/levels_page.dart';
+import 'login_screen.dart';
+import 'chapter_menu_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(MyApp()); // PAS const ici
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Quiz Commercial',
+      title: 'Test Firebase iOS',
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
-        '/': (_) => LoginScreen(), // 🔁 ENLEVER const
+        '/': (_) => LoginScreen(),
         '/chapter_menu': (_) => ChapterMenuPage(),
-        '/levels': (_) => LevelsPage(),
       },
     );
   }
