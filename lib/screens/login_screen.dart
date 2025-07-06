@@ -1,4 +1,3 @@
-// lib/screens/login_screen.dart
 // ignore_for_file: use_build_context_synchronously, avoid_print
 
 import 'package:flutter/material.dart';
@@ -14,49 +13,40 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-/*──────────────────────────────────────────────────────────*/
-
 class _LoginScreenState extends State<LoginScreen> {
-  /* ---- controllers & services ---- */
-  final _auth  = FirebaseAuth.instance;
+  final _auth = FirebaseAuth.instance;
   final _email = TextEditingController();
-  final _pass  = TextEditingController();
-  final _name  = TextEditingController();
+  final _pass = TextEditingController();
+  final _name = TextEditingController();
 
-  /* ---- UI states ---- */
-  bool _obscure    = true;
-  bool _remember   = false;
-  bool _loginMode  = true; // true = connexion, false = inscription
-
-  /* ───────────────── Firebase util ───────────────── */
+  bool _obscure = true;
+  bool _remember = false;
+  bool _loginMode = true;
 
   Future<void> _ensureUserDoc(User u, {String? displayName}) async {
-    final ref  = FirebaseFirestore.instance.collection('users').doc(u.uid);
+    final ref = FirebaseFirestore.instance.collection('users').doc(u.uid);
     final snap = await ref.get();
 
     await ref.set({
-      'name'     : displayName ?? u.displayName ?? 'Invité',
-      'email'    : u.email ?? '',
-      'photoURL' : u.photoURL ?? '',
+      'name': displayName ?? u.displayName ?? 'Invité',
+      'email': u.email ?? '',
+      'photoURL': u.photoURL ?? '',
     }, SetOptions(merge: true));
 
     if (!snap.exists) {
       await ref.set({
-        'createdAt'      : FieldValue.serverTimestamp(),
-        'totalScore'     : 0,
-        'chapters'       : {},
-        'unlockedLevels' : {},
+        'createdAt': FieldValue.serverTimestamp(),
+        'totalScore': 0,
+        'chapters': {},
+        'unlockedLevels': {},
       }, SetOptions(merge: true));
     }
 
-    // token FCM (facultatif : commente si tu n’utilises plus FCM)
     final token = await FirebaseMessaging.instance.getToken();
     if (token != null) {
       await ref.set({'fcmToken': token}, SetOptions(merge: true));
     }
   }
-
-  /* ───────────────── Helpers ───────────────── */
 
   void _snack(String m) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -80,7 +70,9 @@ class _LoginScreenState extends State<LoginScreen> {
           ..setString('password', _pass.text)
           ..setBool('rememberMe', true);
       }
-      Navigator.pushReplacementNamed(context, '/chapter_menu');
+
+      if (!mounted) return;
+      // navigation supprimée car gérée automatiquement dans main.dart
     } on FirebaseAuthException catch (e) {
       _snack(e.message ?? 'Erreur de connexion');
     }
@@ -108,13 +100,13 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final res = await _auth.signInAnonymously();
       await _ensureUserDoc(res.user!, displayName: 'Invité');
-      Navigator.pushReplacementNamed(context, '/chapter_menu');
+
+      if (!mounted) return;
+      // navigation supprimée car gérée automatiquement dans main.dart
     } on FirebaseAuthException catch (e) {
       _snack(e.message ?? 'Erreur invité');
     }
   }
-
-  /* ───────────────── Build ───────────────── */
 
   @override
   Widget build(BuildContext context) {
@@ -149,8 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: _dec(
                   'Mot de passe',
                   icon: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility :
-                                               Icons.visibility_off),
+                    icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
                     onPressed: () => setState(() => _obscure = !_obscure),
                   ),
                 ),
