@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
-        '/': (_) => LoginScreen(), // 🔁 ENLEVER const
+        
         '/chapter_menu': (_) => ChapterMenuPage(),
         '/levels': (_) => LevelsPage(),
       },
