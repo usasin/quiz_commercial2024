@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'login_screen.dart';
-import 'chapter_menu_page.dart';
+import 'screens/login_screen.dart'; // ✅ au lieu de 'login_screen.dart'
+import 'screens/chapter_menu_page.dart'; 
+
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
