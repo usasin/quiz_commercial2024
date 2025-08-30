@@ -1,6 +1,7 @@
 // lib/profile_page.dart
 
 import 'dart:io';
+import 'dart:math';
 
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -15,25 +16,559 @@ import '../animated_gradient_button.dart';
 import '../gradient_text.dart';
 import '../rotating_glow_border.dart';
 
-
 class ProfilePage extends StatefulWidget {
   @override
   _ProfilePageState createState() => _ProfilePageState();
 }
 
-final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
 class _ProfilePageState extends State<ProfilePage> {
-  /// Récupère depuis Firestore :
-  /// - mapping chapterScores
-  /// - mapping unlockedLevels
-  /// - mapping unlockedModules
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  /// Récupère les données des chapitres pour l’utilisateur courant.
   Future<Map<String, dynamic>> getChaptersData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return {};
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final userData = userDoc.data() ?? {};
 
-    final userDoc =
-    await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    // Chapitres stockés sous userData['chapters']
+    final rawChaps = userData['chapters'] as Map<String, dynamic>? ?? {};
+    // Top-level unlockedLevels / unlockedModules
+    final rawUnlockedLv =
+        userData['unlockedLevels'] as Map<String, dynamic>? ?? {};
+    final rawUnlockedMd =
+        userData['unlockedModules'] as Map<String, dynamic>? ?? {};
+
+    final chapterScores = <String, Map<String, int>>{};
+    final unlockedLevels = <String, int>{};
+    final unlockedModules = <String, int>{};
+
+    rawChaps.forEach((chapId, chapVal) {
+      if (chapVal is Map<String, dynamic>) {
+        // Scores par niveau (dossier 'levelScores')
+        final lvlMap = chapVal['levelScores'] as Map<String, dynamic>? ?? {};
+        final scoresMap = <String, int>{};
+        lvlMap.forEach((lvlKey, lvlVal) {
+          if (lvlVal is int) {
+            scoresMap[lvlKey] = lvlVal;
+          } else if (lvlVal is Map<String, dynamic> &&
+              lvlVal['score'] is int) {
+            scoresMap[lvlKey] = lvlVal['score'] as int;
+          }
+        });
+        chapterScores[chapId] = scoresMap;
+
+        // Niveaux & modules débloqués (top-level)
+        unlockedLevels[chapId] = (rawUnlockedLv[chapId] as int?) ?? 0;
+        unlockedModules[chapId] = (rawUnlockedMd[chapId] as int?) ?? 0;
+      }
+    });
+
+    return {
+      'chapterScores': chapterScores,
+      'unlockedLevels': unlockedLevels,
+      'unlockedModules': unlockedModules,
+    };
+  }
+
+  /// Calcule le score total agregé sur tous les chapitres.
+  Future<int> getTotalScore(String? uid) async {
+    if (uid == null) return 0;
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final chapters = doc.data()?['chapters'] as Map? ?? {};
+    var total = 0;
+    (chapters as Map).values.forEach((chap) {
+      if (chap is Map<String, dynamic>) {
+        total += (chap['totalScore'] as int?) ?? 0;
+      }
+    });
+    return total;
+  }
+
+  Future<void> _updateProfileImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked == null) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final ref =
+    FirebaseStorage.instance.ref('profileImages/${user.uid}');
+    await ref.putFile(File(picked.path));
+    final url = await ref.getDownloadURL();
+
+    await user.updatePhotoURL(url);
+    await user.reload();
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .update({'photoURL': url});
+    setState(() {});
+  }
+
+  Future<void> _showUpdateDisplayNameDialog() async {
+    final ctrl = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Modifier le nom d\'utilisateur'.tr()),
+        content: TextField(
+          controller: ctrl,
+          decoration: InputDecoration(
+            labelText: 'Nom d\'utilisateur'.tr(),
+            hintText: 'Entrez votre nouveau nom'.tr(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Annuler'.tr()),
+          ),
+          TextButton(
+            onPressed: () async {
+              final name = ctrl.text.trim();
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content:
+                    Text('Le nom ne peut pas être vide.'.tr()),
+                  ),
+                );
+                return;
+              }
+              final user = FirebaseAuth.instance.currentUser;
+              if (user != null) {
+                await user.updateDisplayName(name);
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .update({'name': name});
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        'Nom d\'utilisateur mis à jour !'.tr()),
+                  ),
+                );
+              }
+              Navigator.pop(context);
+            },
+            child: Text('Enregistrer'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser!;
+
+    return Scaffold(
+      key: _scaffoldKey,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const SizedBox(height: 20),
+
+          // ===== SECTION PROFIL =====
+          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .snapshots(),
+            builder: (ctx, snap) {
+              if (snap.connectionState != ConnectionState.active) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snap.hasData || !snap.data!.exists) {
+                return const Center(child: Text('Profil introuvable'));
+              }
+              final data = snap.data!.data()!;
+              final fsUrl = data['photoURL'] as String?;
+              final authUrl = user.photoURL;
+              final imageUrl = (fsUrl?.isNotEmpty == true)
+                  ? fsUrl
+                  : (authUrl?.isNotEmpty == true ? authUrl : null);
+              final displayName = (data['name'] as String?)?.isNotEmpty ==
+                  true
+                  ? data['name'] as String
+                  : (user.displayName ?? '');
+              final email = (data['email'] as String?)?.isNotEmpty == true
+                  ? data['email'] as String
+                  : (user.email ?? '');
+
+              return Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.grey.withOpacity(0.3),
+                          spreadRadius: 3,
+                          blurRadius: 5)
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        key: ValueKey(imageUrl ?? 'default'),
+                        radius: 50,
+                        backgroundColor: Colors.grey.shade200,
+                        backgroundImage: (imageUrl != null &&
+                            imageUrl.isNotEmpty)
+                            ? NetworkImage(imageUrl)
+                            : const AssetImage(
+                            'assets/images/user.png')
+                        as ImageProvider,
+                      ),
+                      const SizedBox(height: 10),
+                      GradientText(
+                        displayName.isNotEmpty
+                            ? displayName
+                            : 'Nom inconnu'.tr(),
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                        gradient: LinearGradient(colors: [
+                          Colors.blue.shade800,
+                          Colors.blue.shade300,
+                          Colors.blue.shade800,
+                        ]),
+                      ),
+                      const SizedBox(height: 8),
+                      AnimatedGradientButton(
+                        onTap: _showUpdateDisplayNameDialog,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.edit,
+                                color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text('Modifier le nom'.tr(),
+                                style: const TextStyle(
+                                    color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        email.isNotEmpty
+                            ? email
+                            : 'Email non défini'.tr(),
+                        style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600),
+                      ),
+                      const SizedBox(height: 16),
+                      AnimatedGradientButton(
+                        onTap: _updateProfileImage,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.camera_alt,
+                                color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text('Changer la photo'.tr(),
+                                style: const TextStyle(
+                                    color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 20),
+
+          // ===== SECTION SCORE TOTAL =====
+          FutureBuilder<int>(
+            future: getTotalScore(user.uid),
+            builder: (ctx, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final total = snap.data ?? 0;
+              return Column(
+                children: [
+                  SizedBox(
+                    height: 120,
+                    width: 120,
+                    child:
+                    Lottie.asset('assets/Animation_salesstat.json'),
+                  ),
+                  const SizedBox(height: 16),
+                  GradientText(
+                    'Score total global'.tr(),
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold),
+                    gradient: const LinearGradient(colors: [
+                      Colors.green,
+                      Colors.lightGreen,
+                      Colors.green
+                    ]),
+                  ),
+                  const SizedBox(height: 8),
+                  AnimatedGradientButton(
+                    onTap: () {},
+                    child: Text(
+                      total.toString(),
+                      style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 20),
+
+          // ===== SECTION STATISTIQUES PAR CHAPITRE =====
+          FutureBuilder<Map<String, dynamic>>(
+            future: getChaptersData(),
+            builder: (ctx, snap) {
+              if (snap.connectionState != ConnectionState.done ||
+                  snap.data == null ||
+                  snap.data!.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                      'Commencez à jouer pour voir vos statistiques ici.'),
+                );
+              }
+              final data = snap.data!;
+              final scoresMap = data['chapterScores']
+              as Map<String, Map<String, int>>;
+              final levelsMap =
+              data['unlockedLevels'] as Map<String, int>;
+              final modsMap =
+              data['unlockedModules'] as Map<String, int>;
+
+              final entries = scoresMap.entries.toList()
+                ..sort((a, b) =>
+                    b.value.values.fold(0, (p, e) => p + e)
+                        .compareTo(a.value.values
+                        .fold(0, (p, e) => p + e)));
+
+              return Column(
+                children: entries.map((entry) {
+                  final chapId = entry.key;
+                  final scores = entry.value;
+                  final chapTotalScore =
+                  scores.values.fold(0, (p, e) => p + e);
+
+                  final lvlUnlocked = levelsMap[chapId] ?? 0;
+                  final modUnlocked = modsMap[chapId] ?? 0;
+                  final lessons = scores.length;
+
+                  return FutureBuilder<
+                      DocumentSnapshot<Map<String, dynamic>>>(
+                    future: FirebaseFirestore.instance
+                        .collection('chapters')
+                        .doc(chapId)
+                        .get(),
+                    builder: (c2, s2) {
+                      if (s2.connectionState !=
+                          ConnectionState.done ||
+                          !s2.hasData ||
+                          !s2.data!.exists) {
+                        return const SizedBox();
+                      }
+                      final chap = s2.data!.data()!;
+                      final title = chap['title'] as String? ??
+                          'Chapitre';
+                      final nq =
+                          chap['numberOfQuizzes'] as int? ?? 0;
+                      final nm =
+                          chap['numberOfModules'] as int? ?? 0;
+
+                      final levelsDone = lvlUnlocked >= nq;
+                      final modsDone =
+                      nm > 0 ? (modUnlocked >= nm) : true;
+                      final quizMax = 100;
+                      final finishedByScore = nq > 0
+                          ? (chapTotalScore >=
+                          nq * quizMax * 0.8)
+                          : true;
+
+                      final done =
+                          levelsDone && modsDone && finishedByScore;
+
+                      final box = _buildChapterBox(
+                          title,
+                          lvlUnlocked,
+                          modUnlocked,
+                          lessons,
+                          chapTotalScore,
+                          done);
+
+                      return Padding(
+                        padding:
+                        const EdgeInsets.symmetric(vertical: 8),
+                        child: done
+                            ? RotatingGlowBorder(
+                          borderWidth: 3,
+                          borderRadius: 20,
+                          colors: const [
+                            Colors.green,
+                            Colors.lightGreen,
+                            Colors.green
+                          ],
+                          duration:
+                          const Duration(seconds: 4),
+                          child: box,
+                        )
+                            : box,
+                      );
+                    },
+                  );
+                }).toList(),
+              );
+            },
+          ),
+
+          const SizedBox(height: 100),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChapterBox(
+      String title,
+      int lvlUnlocked,
+      int modUnlocked,
+      int lessons,
+      int score,
+      bool done) {
+    return Container(
+      margin: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: done
+              ? [Colors.green.shade500, Colors.green.shade100]
+              : [Colors.blue.shade800, Colors.blue.shade100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+            color: done
+                ? Colors.green.shade800
+                : Colors.transparent,
+            width: done ? 2 : 0),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.grey.withOpacity(0.5),
+              spreadRadius: 3,
+              blurRadius: 5)
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: AutoSizeText(
+                  title,
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: done
+                          ? Colors.green.shade800
+                          : Colors.yellow.shade700),
+                  maxLines: 1,
+                ),
+              ),
+              Icon(
+                done ? Icons.check_circle : Icons.access_alarm,
+                color: done
+                    ? Colors.green.shade800
+                    : Colors.yellow.shade700,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _buildStatItem(
+              'Niveaux déverrouillés'.tr(), lvlUnlocked,
+              isCompleted: lvlUnlocked > 0),
+          const SizedBox(height: 6),
+          _buildStatItem(
+              'Modules débloqués'.tr(), modUnlocked,
+              isCompleted: modUnlocked > 0),
+          const SizedBox(height: 6),
+          _buildStatItem(
+              'Leçons déverrouillées'.tr(), lessons,
+              isCompleted: lessons > 0),
+          const SizedBox(height: 6),
+          _buildStatItem(
+              'Score total du chapitre'.tr(), score,
+              isCompleted: score >=
+                  ((lessons * 100) * 0.8).round()),
+          if (done)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Center(
+                child: Text('Chapitre terminé !'.tr(),
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade800)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, int value,
+      {bool isCompleted = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white))),
+        Row(
+          children: [
+            Text(value.toString(),
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
+            const SizedBox(width: 4),
+            Icon(
+                isCompleted
+                    ? Icons.check_circle
+                    : Icons.add_alert,
+                color: isCompleted
+                    ? Colors.green.shade700
+                    : Colors.yellow.shade700,
+                size: 18),
+          ],
+        ),
+      ],
+    );
+  }
+}
     final userData = userDoc.data() as Map<String, dynamic>;
 
     Map<String, Map<String, int>> chapterScores = {};
