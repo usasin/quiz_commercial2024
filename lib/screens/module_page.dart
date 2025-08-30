@@ -120,7 +120,7 @@ class _ModulePageState extends State<ModulePage> {
 
         bottomNavigationBar: CustomBottomNavBar(
           parentContext: context,
-          currentIndex: 2,
+          currentIndex: 1,
           scaffoldKey: GlobalKey<ScaffoldState>(),
         ),
       ),
