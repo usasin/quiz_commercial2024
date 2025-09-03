@@ -1,38 +1,44 @@
+ # Définissez la version minimale d'iOS pour votre application
 platform :ios, '13.0'
+
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
+# Détermine où se trouve votre SDK Flutter
 def flutter_root
-  generated_xcode_build_settings = File.expand_path(File.join('..','Flutter','Generated.xcconfig'), __FILE__)
+  generated_xcode_build_settings = File.expand_path(
+    File.join('..', 'Flutter', 'Generated.xcconfig'),
+    __FILE__
+  )
   unless File.exist?(generated_xcode_build_settings)
-    raise "#{generated_xcode_build_settings} must exist. Run 'flutter pub get' first."
+    raise "#{generated_xcode_build_settings} must exist. " \
+          "Run 'flutter pub get' first."
   end
   File.foreach(generated_xcode_build_settings) do |line|
-    return Regexp.last_match(1).strip if line =~ /FLUTTER_ROOT\=(.*)/
+    if line =~ /FLUTTER_ROOT\=(.*)/
+      return Regexp.last_match(1).strip
+    end
   end
   raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings}"
 end
 
-require File.expand_path(File.join('packages','flutter_tools','bin','podhelper'), flutter_root)
+# Charge le podhelper officiel de Flutter
+require File.expand_path(
+  File.join('packages', 'flutter_tools', 'bin', 'podhelper'),
+  flutter_root
+)
 
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  use_frameworks! :linkage => :static
+  use_frameworks!
   use_modular_headers!
+
+  # Installe tous les pods Flutter (dont App.framework)
   flutter_install_all_ios_pods(File.dirname(File.realpath(__FILE__)))
 end
 
 post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
-
-    target.build_configurations.each do |config|
-      # iOS min 13 partout
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      # Bitcode retiré d’iOS/Xcode → OFF
-      config.build_settings['ENABLE_BITCODE'] = 'NO'
-      # Evite les soucis de sim arm64 (n’affecte pas l’archive device)
-      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
-    end
+  installer.pods_project.targets.each do |t|
+    flutter_additional_ios_build_settings(t)
   end
 end
