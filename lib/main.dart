@@ -1,5 +1,6 @@
 // lib/main.dart
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:firebase_core/firebase_core.dart';
@@ -34,7 +35,7 @@ import 'challenge_screen/challenge_lobby.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final FlutterLocalNotificationsPlugin _localNotif = FlutterLocalNotificationsPlugin();
 
-@pragma('vm:entry-point') // requis pour iOS/Android release
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage msg) async {
   if (Firebase.apps.isEmpty) {
     try {
@@ -96,7 +97,6 @@ void _handleNotificationResponse(NotificationResponse resp) {
 
 Future<void> _safeLoadDotEnv() async {
   try {
-    // On ne plante pas si le fichier n’est pas packagé dans l’IPA
     await rootBundle.loadString('.env');
     await dotenv.load(fileName: '.env');
   } catch (_) {/* ignore missing .env */}
@@ -105,20 +105,41 @@ Future<void> _safeLoadDotEnv() async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1) Localisation – on ne fait pas échouer l’app si les assets manquent
+  // On garde juste EasyLocalization avant runApp (rapide).
   await EasyLocalization.ensureInitialized();
 
-  // 2) DotEnv – tolérant à l’absence du fichier
+  // >>> Affiche l'UI tout de suite
+  runApp(
+    EasyLocalization(
+      supportedLocales: const [Locale('en'), Locale('fr')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en'),
+      child: MultiProvider(
+        providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+        child: const MyApp(),
+      ),
+    ),
+  );
+
+  // >>> Tout le reste en arrière-plan (ne pas await)
+  // ignore: discarded_futures
+  _bootstrap();
+}
+
+/// Initialisation asynchrone NON bloquante
+Future<void> _bootstrap() async {
+  // 1) DotEnv (tolérant)
   await _safeLoadDotEnv();
 
-  // 3) Firebase
+  // 2) Firebase (avec timeout de sécurité)
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  } on FirebaseException catch (e) {
-    if (e.code != 'duplicate-app') rethrow;
-  }
+    await Firebase
+        .initializeApp(options: DefaultFirebaseOptions.currentPlatform)
+        .timeout(const Duration(seconds: 10));
+  } on TimeoutException { /* continue avec valeurs par défaut */ }
+    catch (e) { /* ne bloque pas le lancement */ }
 
-  // 4) Notifs locales
+  // 3) Notifs locales
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
   const iosInit = DarwinInitializationSettings(
     requestAlertPermission: true,
@@ -130,65 +151,54 @@ Future<void> main() async {
     onDidReceiveNotificationResponse: _handleNotificationResponse,
   );
 
-  // 5) Canal Android (no-op sur iOS)
-  const channel = AndroidNotificationChannel(
-    'invites_channel',
-    'Invitations',
-    description: 'Canal pour les invitations de défi',
-    importance: Importance.high,
-  );
-  final androidImpl =
-      _localNotif.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-  await androidImpl?.createNotificationChannel(channel);
-
-  // 6) FCM permissions & options
-  await FirebaseMessaging.instance.requestPermission();
-  if (Platform.isIOS) {
-    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-      alert: true, badge: true, sound: true,
-    );
-  }
   if (Platform.isAndroid) {
-    await Permission.notification.request();
+    const channel = AndroidNotificationChannel(
+      'invites_channel',
+      'Invitations',
+      description: 'Canal pour les invitations de défi',
+      importance: Importance.high,
+    );
+    final androidImpl = _localNotif
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidImpl?.createNotificationChannel(channel);
   }
 
-  // 7) Handlers FCM
+  // 4) FCM & permissions (APRES affichage de l’UI)
+  try {
+    await FirebaseMessaging.instance.requestPermission();
+    if (Platform.isIOS) {
+      await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+        alert: true, badge: true, sound: true,
+      );
+    } else {
+      await Permission.notification.request();
+    }
+  } catch (_) {}
+
+  // 5) Handlers FCM
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   FirebaseMessaging.onMessage.listen(_showLocalNotification);
   FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
-  // 8) Mobile Ads (ne fait pas échouer l’app s’il y a un souci)
+  // 6) Mobile Ads (tente mais ne bloque pas)
   try { await MobileAds.instance.initialize(); } catch (_) {}
 
-  // 9) Token FCM → Firestore (safe)
+  // 7) Token FCM -> Firestore
   FirebaseAuth.instance.authStateChanges().listen((user) async {
     if (user != null) {
       final fcm = FirebaseMessaging.instance;
-      final token = await fcm.getToken();
-      if (token != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({'fcmToken': token}, SetOptions(merge: true));
-      }
-      await fcm.subscribeToTopic('app_updates');
+      try {
+        final token = await fcm.getToken();
+        if (token != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({'fcmToken': token}, SetOptions(merge: true));
+        }
+        await fcm.subscribeToTopic('app_updates');
+      } catch (_) {}
     }
   });
-
-  // 10) Démarrage de l’app
-  runApp(
-    EasyLocalization(
-      supportedLocales: const [Locale('en'), Locale('fr')],
-      path: 'assets/translations', // doit exister, sinon fallback en EN
-      fallbackLocale: const Locale('en'),
-      child: MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ],
-        child: const MyApp(),
-      ),
-    ),
-  );
 }
 
 class MyApp extends StatelessWidget {
@@ -209,16 +219,12 @@ class MyApp extends StatelessWidget {
         locale: context.locale,
         initialRoute: '/login',
         routes: {
-          '/login': (_) => const LoginScreen(),
+          '/login': (_) => const LoginScreen(key: Key('home_screen')), // identifiant utile pour tests
           '/chapter_menu': (_) => ChapterMenuPage(),
           '/challenge-menu': (_) => const ChallengeHomeMenu(),
           '/levels': (_) => const LevelsPage(),
           '/lessons': (_) => LessonsScreen(),
-          '/quiz': (_) => QuizScreen(
-                level: 1,
-                chapterId: 'chapters1',
-                onLevelCompleted: () {},
-              ),
+          '/quiz': (_) => QuizScreen(level: 1, chapterId: 'chapters1', onLevelCompleted: () {}),
           '/simulation': (_) => SimulationScreen(chapterId: 'chapters1'),
           '/compt_rendu': (_) => CompteRenduScreen(chapterId: 'chapters1'),
           '/profile': (_) => ProfilePage(),
@@ -227,10 +233,7 @@ class MyApp extends StatelessWidget {
           '/about': (_) => AboutScreen(),
           '/information': (_) => InformationScreen(),
           '/challenge-lobby': (ctx) {
-            // 🔒 Protège contre des arguments absents/mal typés
-            final args = (ModalRoute.of(ctx)?.settings.arguments
-                    as Map<String, dynamic>?) ??
-                const {};
+            final args = (ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?) ?? const {};
             return ChallengeLobby(
               isCreator: (args['isCreator'] as bool?) ?? false,
               challengeId: (args['challengeId'] as String?) ?? '',
