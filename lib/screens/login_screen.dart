@@ -1,12 +1,17 @@
-// lib/login_screen.dart
-// Page d'authentification moderne (même nom: LoginScreen)
-// Email + mot de passe + Invité + création/connexion
-// UI responsive (mobile & iPad), carte verre + micro-animations
-
+// ignore_for_file: avoid_print
+import 'dart:convert';
+import 'dart:io' show Platform;
+import 'dart:math';
 import 'dart:ui';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,7 +19,8 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   // Controllers
   final _email = TextEditingController();
   final _pass = TextEditingController();
@@ -22,11 +28,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // State
   bool _obscure = true;
-  bool _loginMode = true; // true = connexion, false = inscription
+  bool _isLogin = true;
   bool _loading = false;
 
+  // Animated background
+  late final AnimationController _bgCtrl =
+      AnimationController(vsync: this, duration: const Duration(seconds: 10))
+        ..repeat();
+
+  // Utils
   void _snack(String m) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  InputDecoration _dec(String label, {IconData? icon}) => InputDecoration(
+        labelText: label,
+        prefixIcon: icon == null ? null : Icon(icon),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+      );
 
   Future<void> _guarded(Future<void> Function() run) async {
     if (_loading) return;
@@ -38,9 +56,10 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // Firestore user
   Future<void> _createOrUpdateUserDoc(User u, {String? name}) async {
     final ref = FirebaseFirestore.instance.collection('users').doc(u.uid);
-    final snap = await ref.get();
+    final existed = (await ref.get()).exists;
 
     await ref.set({
       'name': name ?? u.displayName ?? 'Invité',
@@ -48,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
       'photoURL': u.photoURL ?? '',
     }, SetOptions(merge: true));
 
-    if (!snap.exists) {
+    if (!existed) {
       await ref.set({
         'createdAt': FieldValue.serverTimestamp(),
         'totalScore': 0,
@@ -61,6 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // Email / MDP
   Future<void> _signInEmail() => _guarded(() async {
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -76,21 +96,19 @@ class _LoginScreenState extends State<LoginScreen> {
   });
 
   Future<void> _signUpEmail() => _guarded(() async {
-    if (_name.text.trim().isEmpty ||
-        _email.text.trim().isEmpty ||
-        _pass.text.isEmpty) {
+    if ([_name, _email, _pass].any((c) => c.text.trim().isEmpty)) {
       _snack('Complète nom, email et mot de passe.');
       return;
     }
     try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final c = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _email.text.trim(),
         password: _pass.text,
       );
-      await _createOrUpdateUserDoc(cred.user!, name: _name.text.trim());
+      await _createOrUpdateUserDoc(c.user!, name: _name.text.trim());
       _snack('Inscription réussie, connecte-toi 👍');
       setState(() {
-        _loginMode = true;
+        _isLogin = true;
         _pass.clear();
       });
     } on FirebaseAuthException catch (e) {
@@ -109,342 +127,297 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   });
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final size = MediaQuery.of(context).size;
-    final maxCardWidth = size.width < 600 ? size.width - 32 : 520.0; // iPad ok
+  // Google
+  Future<void> _signInWithGoogle() => _guarded(() async {
+    try {
+      final googleUser = await GoogleSignIn(
+        // Sur iOS, pas besoin de clientId si GoogleService-Info.plist est correct.
+        scopes: <String>['email', 'profile'],
+      ).signIn();
+      if (googleUser == null) return;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Fond dégradé animé
-          TweenAnimationBuilder<double>(
-            duration: const Duration(seconds: 6),
-            tween: Tween(begin: 0, end: 1),
-            curve: Curves.easeInOut,
-            onEnd: () => setState(() {}),
-            builder: (context, t, _) {
-              return Container(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment(-0.6 + 1.2 * t, -0.4),
-                    radius: 1.2,
-                    colors: const [
-                      Color(0xFF3A0CA3),
-                      Color(0xFF4361EE),
-                      Color(0xFF4CC9F0),
-                    ],
-                    stops: const [0.1, 0.55, 1.0],
-                  ),
-                ),
-              );
-            },
-          ),
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
+      );
 
-          // Motif doux
-          IgnorePointer(
-            child: CustomPaint(
-              painter: _GridPainter(opacity: 0.08),
-            ),
-          ),
+      final userCred =
+          await FirebaseAuth.instance.signInWithCredential(credential);
 
-          // Formulaire (carte verre)
-          Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxCardWidth),
-              child: _FrostedCard(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _loginMode ? 'Connexion' : 'Créer un compte',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    if (!_loginMode)
-                      _LabeledField(
-                        label: 'Nom',
-                        child: TextField(
-                          controller: _name,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            hintText: 'Votre nom',
-                          ),
-                        ),
-                      ),
-
-                    _LabeledField(
-                      label: 'Email',
-                      child: TextField(
-                        controller: _email,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          hintText: 'exemple@email.com',
-                        ),
-                      ),
-                    ),
-
-                    _LabeledField(
-                      label: 'Mot de passe',
-                      child: TextField(
-                        controller: _pass,
-                        obscureText: _obscure,
-                        decoration: InputDecoration(
-                          hintText: '••••••••',
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscure ? Icons.visibility : Icons.visibility_off,
-                            ),
-                            onPressed: () => setState(() => _obscure = !_obscure),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    // Bouton principal
-                    _GradientButton(
-                      loading: _loading,
-                      label: _loginMode ? 'Se connecter' : 'S\'inscrire',
-                      icon: _loginMode ? Icons.login : Icons.person_add,
-                      onPressed: _loading
-                          ? null
-                          : (_loginMode ? _signInEmail : _signUpEmail),
-                    ),
-
-                    TextButton(
-                      onPressed: _loading
-                          ? null
-                          : () => setState(() => _loginMode = !_loginMode),
-                      child: Text(
-                        _loginMode
-                            ? 'Créer un compte'
-                            : 'Déjà inscrit ? Connexion',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-                    const Divider(color: Colors.white24),
-                    const SizedBox(height: 8),
-
-                    // Invité
-                    _GlassButton(
-                      loading: _loading,
-                      icon: Icons.videogame_asset_rounded,
-                      label: 'Continuer en invité',
-                      onPressed: _loading ? null : _guest,
-                    ),
-
-                    const SizedBox(height: 14),
-                    const Text(
-                      '© @AI NEGO · RGPD',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white60, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// --- Widgets UI ---
-class _FrostedCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsets padding;
-  const _FrostedCard({required this.child, this.padding = EdgeInsets.zero});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.18)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.35),
-                blurRadius: 30,
-                offset: const Offset(0, 18),
-              ),
-            ],
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
-class _LabeledField extends StatelessWidget {
-  final String label;
-  final Widget child;
-  const _LabeledField({required this.label, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 6),
-          Theme(
-            data: Theme.of(context).copyWith(
-              inputDecorationTheme: InputDecorationTheme(
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.10),
-                hintStyle: const TextStyle(color: Colors.white54),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.25)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.25)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Colors.white),
-                ),
-              ),
-            ),
-            child: child,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GradientButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final bool loading;
-  const _GradientButton({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-    this.loading = false,
+      await _createOrUpdateUserDoc(userCred.user!);
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/chapter_menu');
+    } on FirebaseAuthException catch (e) {
+      _snack(e.message ?? 'Connexion Google impossible');
+    } catch (e) {
+      _snack('Erreur Google : $e');
+    }
   });
 
-  @override
-  Widget build(BuildContext context) {
+  // Apple
+  String _nonce([int length = 32]) {
+    const chars =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final rand = Random.secure();
+    return List.generate(length, (_) => chars[rand.nextInt(chars.length)]).join();
+  }
+
+  String _sha256(String input) => sha256.convert(utf8.encode(input)).toString();
+
+  Future<void> _signInWithApple() => _guarded(() async {
+    try {
+      if (!await SignInWithApple.isAvailable()) {
+        _snack('Apple Sign-In indisponible sur cet appareil.');
+        return;
+      }
+      final raw = _nonce();
+      final hashed = _sha256(raw);
+
+      final apple = await SignInWithApple.getAppleIDCredential(
+        scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
+        nonce: hashed,
+      );
+
+      final oauth = OAuthProvider('apple.com').credential(
+        idToken: apple.identityToken,
+        rawNonce: raw,
+      );
+
+      final userCred = await FirebaseAuth.instance.signInWithCredential(oauth);
+      final fullName = [
+        apple.givenName ?? '',
+        apple.familyName ?? '',
+      ].where((e) => e.isNotEmpty).join(' ').trim();
+
+      await _createOrUpdateUserDoc(
+        userCred.user!,
+        name: fullName.isEmpty ? null : fullName,
+      );
+
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/chapter_menu');
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code != AuthorizationErrorCode.canceled) {
+        _snack('Apple : ${e.message}');
+      }
+    } on FirebaseAuthException catch (e) {
+      _snack(e.message ?? 'Connexion Apple impossible');
+    } catch (e) {
+      _snack('Erreur Apple : $e');
+    }
+  });
+
+  // UI helpers
+  Widget _primaryButton({
+    required String label,
+    required VoidCallback? onPressed,
+    IconData? icon,
+  }) {
     final btn = ElevatedButton(
-      onPressed: loading ? null : onPressed,
+      onPressed: _loading ? null : onPressed,
       style: ElevatedButton.styleFrom(
-        foregroundColor: Colors.white,
-        backgroundColor: Colors.transparent,
         padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 0,
-      ),
-      child: loading
-          ? const SizedBox(
-              height: 22,
-              width: 22,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            )
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon),
-                const SizedBox(width: 10),
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-              ],
-            ),
-    );
-
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF00C6FF), Color(0xFF0072FF)],
-        ),
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-      ),
-      child: btn,
-    );
-  }
-}
-
-class _GlassButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final bool loading;
-  const _GlassButton({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-    this.loading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton(
-      onPressed: loading ? null : onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white.withOpacity(0.10),
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        side: BorderSide(color: Colors.white.withOpacity(0.28)),
-        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon),
-          const SizedBox(width: 10),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+          if (icon != null) ...[
+            Icon(icon),
+            const SizedBox(width: 8),
+          ],
+          Text(label),
+        ],
+      ),
+    );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.deepPurple.withOpacity(0.25),
+            blurRadius: 18,
+            spreadRadius: 1,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: btn,
+    );
+  }
+
+  @override
+  void dispose() {
+    _bgCtrl.dispose();
+    _email.dispose();
+    _pass.dispose();
+    _name.dispose();
+    super.dispose();
+    }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isPad = MediaQuery.of(context).size.shortestSide >= 600;
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Animated gradient background
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _bgCtrl,
+              builder: (_, __) {
+                final t = _bgCtrl.value;
+                final colors = [
+                  Color.lerp(Colors.deepPurple, Colors.indigo, t)!,
+                  Color.lerp(Colors.blue, Colors.teal, t)!,
+                  Color.lerp(Colors.purple, Colors.pink, t)!,
+                ];
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(-0.6 + t, -0.4 + t),
+                      radius: 1.2,
+                      colors: colors,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          // Glass card
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: isPad ? 520 : 420),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: isPad ? 32 : 20),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    child: Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.25),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _isLogin ? 'Connexion' : 'Créer un compte',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+
+                          if (!_isLogin)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: TextField(
+                                controller: _name,
+                                textCapitalization: TextCapitalization.words,
+                                decoration: _dec('Nom', icon: Icons.person),
+                              ),
+                            ),
+                          TextField(
+                            controller: _email,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: _dec('Email', icon: Icons.email),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _pass,
+                            obscureText: _obscure,
+                            decoration: _dec('Mot de passe', icon: Icons.lock).copyWith(
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscure ? Icons.visibility : Icons.visibility_off,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _obscure = !_obscure),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+
+                          _primaryButton(
+                            label: _isLogin ? 'Se connecter' : 'S’inscrire',
+                            icon: _isLogin ? Icons.login : Icons.person_add,
+                            onPressed: _isLogin ? _signInEmail : _signUpEmail,
+                          ),
+                          const SizedBox(height: 10),
+                          TextButton(
+                            onPressed: _loading
+                                ? null
+                                : () => setState(() => _isLogin = !_isLogin),
+                            child: Text(
+                              _isLogin
+                                  ? 'Créer un compte'
+                                  : 'Déjà un compte ? Se connecter',
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+                          Row(
+                            children: const [
+                              Expanded(child: Divider()),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                                child: Text('ou'),
+                              ),
+                              Expanded(child: Divider()),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Providers
+                          _primaryButton(
+                            label: 'Continuer avec Google',
+                            icon: Icons.g_mobiledata_rounded,
+                            onPressed: _signInWithGoogle,
+                          ),
+                          if (Platform.isIOS) ...[
+                            const SizedBox(height: 10),
+                            _primaryButton(
+                              label: 'Continuer avec Apple',
+                              icon: Icons.apple,
+                              onPressed: _signInWithApple,
+                            ),
+                          ],
+
+                          const SizedBox(height: 16),
+                          _primaryButton(
+                            label: 'Continuer en invité',
+                            icon: Icons.videogame_asset,
+                            onPressed: _guest,
+                          ),
+
+                          const SizedBox(height: 14),
+                          Text(
+                            '© AI NEGO — RGPD / grpd',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
-}
-
-class _GridPainter extends CustomPainter {
-  final double opacity;
-  const _GridPainter({this.opacity = 0.06});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(opacity)
-      ..strokeWidth = 1;
-    const step = 28.0;
-
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _GridPainter oldDelegate) => false;
 }
