@@ -1,17 +1,8 @@
 // ignore_for_file: avoid_print
-import 'dart:convert';
-import 'dart:io' show Platform;
-import 'dart:math';
 import 'dart:ui';
-
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,31 +11,28 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   // Controllers
   final _email = TextEditingController();
-  final _pass = TextEditingController();
-  final _name = TextEditingController();
+  final _pass  = TextEditingController();
+  final _name  = TextEditingController();
 
   // State
+  bool _isLogin = true; // true = connexion, false = inscription
   bool _obscure = true;
-  bool _isLogin = true;
   bool _loading = false;
 
-  // Animated background
+  // Animations
   late final AnimationController _bgCtrl =
-      AnimationController(vsync: this, duration: const Duration(seconds: 10))
+      AnimationController(vsync: this, duration: const Duration(seconds: 12))
         ..repeat();
+  late final AnimationController _shimmerCtrl =
+      AnimationController(vsync: this, duration: const Duration(seconds: 2))
+        ..repeat(reverse: true);
 
-  // Utils
+  // Helpers
   void _snack(String m) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
-
-  InputDecoration _dec(String label, {IconData? icon}) => InputDecoration(
-        labelText: label,
-        prefixIcon: icon == null ? null : Icon(icon),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-      );
 
   Future<void> _guarded(Future<void> Function() run) async {
     if (_loading) return;
@@ -56,10 +44,21 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // Firestore user
+  InputDecoration _dec(String label, IconData icon) => InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.85),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      );
+
   Future<void> _createOrUpdateUserDoc(User u, {String? name}) async {
     final ref = FirebaseFirestore.instance.collection('users').doc(u.uid);
-    final existed = (await ref.get()).exists;
+    final snap = await ref.get();
 
     await ref.set({
       'name': name ?? u.displayName ?? 'Invité',
@@ -67,7 +66,7 @@ class _LoginScreenState extends State<LoginScreen>
       'photoURL': u.photoURL ?? '',
     }, SetOptions(merge: true));
 
-    if (!existed) {
+    if (!snap.exists) {
       await ref.set({
         'createdAt': FieldValue.serverTimestamp(),
         'totalScore': 0,
@@ -80,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // Email / MDP
+  // Email / Password
   Future<void> _signInEmail() => _guarded(() async {
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -101,16 +100,13 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
     try {
-      final c = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _email.text.trim(),
         password: _pass.text,
       );
-      await _createOrUpdateUserDoc(c.user!, name: _name.text.trim());
+      await _createOrUpdateUserDoc(cred.user!, name: _name.text.trim());
       _snack('Inscription réussie, connecte-toi 👍');
-      setState(() {
-        _isLogin = true;
-        _pass.clear();
-      });
+      setState(() { _isLogin = true; _pass.clear(); });
     } on FirebaseAuthException catch (e) {
       _snack(e.message ?? 'Erreur inscription');
     }
@@ -127,140 +123,102 @@ class _LoginScreenState extends State<LoginScreen>
     }
   });
 
-  // Google
-  Future<void> _signInWithGoogle() => _guarded(() async {
-    try {
-      final googleUser = await GoogleSignIn(
-        // Sur iOS, pas besoin de clientId si GoogleService-Info.plist est correct.
-        scopes: <String>['email', 'profile'],
-      ).signIn();
-      if (googleUser == null) return;
-
-      final googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-        accessToken: googleAuth.accessToken,
-      );
-
-      final userCred =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-
-      await _createOrUpdateUserDoc(userCred.user!);
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/chapter_menu');
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Connexion Google impossible');
-    } catch (e) {
-      _snack('Erreur Google : $e');
-    }
-  });
-
-  // Apple
-  String _nonce([int length = 32]) {
-    const chars =
-        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
-    final rand = Random.secure();
-    return List.generate(length, (_) => chars[rand.nextInt(chars.length)]).join();
-  }
-
-  String _sha256(String input) => sha256.convert(utf8.encode(input)).toString();
-
-  Future<void> _signInWithApple() => _guarded(() async {
-    try {
-      if (!await SignInWithApple.isAvailable()) {
-        _snack('Apple Sign-In indisponible sur cet appareil.');
-        return;
-      }
-      final raw = _nonce();
-      final hashed = _sha256(raw);
-
-      final apple = await SignInWithApple.getAppleIDCredential(
-        scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
-        nonce: hashed,
-      );
-
-      final oauth = OAuthProvider('apple.com').credential(
-        idToken: apple.identityToken,
-        rawNonce: raw,
-      );
-
-      final userCred = await FirebaseAuth.instance.signInWithCredential(oauth);
-      final fullName = [
-        apple.givenName ?? '',
-        apple.familyName ?? '',
-      ].where((e) => e.isNotEmpty).join(' ').trim();
-
-      await _createOrUpdateUserDoc(
-        userCred.user!,
-        name: fullName.isEmpty ? null : fullName,
-      );
-
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/chapter_menu');
-    } on SignInWithAppleAuthorizationException catch (e) {
-      if (e.code != AuthorizationErrorCode.canceled) {
-        _snack('Apple : ${e.message}');
-      }
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Connexion Apple impossible');
-    } catch (e) {
-      _snack('Erreur Apple : $e');
-    }
-  });
-
-  // UI helpers
-  Widget _primaryButton({
+  // UI pieces
+  Widget _gradientButton({
     required String label,
-    required VoidCallback? onPressed,
+    required VoidCallback? onTap,
     IconData? icon,
+    List<Color>? colors,
   }) {
-    final btn = ElevatedButton(
-      onPressed: _loading ? null : onPressed,
-      style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (icon != null) ...[
-            Icon(icon),
-            const SizedBox(width: 8),
-          ],
-          Text(label),
-        ],
-      ),
-    );
+    final gradient = colors ??
+        [const Color(0xff7F5AF0), const Color(0xff2CB67D)]; // violet -> vert
 
     return DecoratedBox(
       decoration: BoxDecoration(
+        gradient: LinearGradient(colors: gradient),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.deepPurple.withOpacity(0.25),
-            blurRadius: 18,
-            spreadRadius: 1,
-            offset: const Offset(0, 8),
+            color: gradient.last.withOpacity(0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
-        borderRadius: BorderRadius.circular(16),
       ),
-      child: btn,
+      child: InkWell(
+        onTap: _loading ? null : onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: Colors.white),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _titleShimmer(String text) {
+    return AnimatedBuilder(
+      animation: _shimmerCtrl,
+      builder: (context, _) {
+        final t = _shimmerCtrl.value; // 0..1
+        return ShaderMask(
+          blendMode: BlendMode.srcIn,
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment(-1 + 2 * t, 0),
+              end: const Alignment(1, 0),
+              colors: const [
+                Color(0xff2CB67D), // green
+                Color(0xff7F5AF0), // purple
+                Color(0xff00C2FF), // cyan
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ).createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height));
+          },
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
+          ),
+        );
+      },
     );
   }
 
   @override
   void dispose() {
     _bgCtrl.dispose();
+    _shimmerCtrl.dispose();
     _email.dispose();
     _pass.dispose();
     _name.dispose();
     super.dispose();
-    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isPad = MediaQuery.of(context).size.shortestSide >= 600;
+    final size = MediaQuery.of(context).size;
+    final isPad = size.shortestSide >= 600;
 
     return Scaffold(
       body: Stack(
@@ -271,144 +229,158 @@ class _LoginScreenState extends State<LoginScreen>
               animation: _bgCtrl,
               builder: (_, __) {
                 final t = _bgCtrl.value;
-                final colors = [
-                  Color.lerp(Colors.deepPurple, Colors.indigo, t)!,
-                  Color.lerp(Colors.blue, Colors.teal, t)!,
-                  Color.lerp(Colors.purple, Colors.pink, t)!,
-                ];
                 return Container(
                   decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment(-0.6 + t, -0.4 + t),
-                      radius: 1.2,
-                      colors: colors,
+                    gradient: LinearGradient(
+                      begin: Alignment(-0.8 + t, -1),
+                      end: Alignment(1, 0.8 - t),
+                      colors: const [
+                        Color(0xff0F1020),
+                        Color(0xff121629),
+                        Color(0xff1F2544),
+                      ],
                     ),
                   ),
                 );
               },
             ),
           ),
+          // Soft blobs for depth
+          Positioned(
+            left: -80,
+            top: -40,
+            child: _blob(const Color(0xFF7F5AF0)),
+          ),
+          Positioned(
+            right: -60,
+            bottom: -60,
+            child: _blob(const Color(0xFF2CB67D)),
+          ),
+
           // Glass card
-          Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: isPad ? 520 : 420),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: isPad ? 32 : 20),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                    child: Container(
-                      padding: const EdgeInsets.all(22),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface.withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.25),
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: isPad ? 520 : 420),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: isPad ? 24 : 16, vertical: 16),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.20),
+                          ),
                         ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _isLogin ? 'Connexion' : 'Créer un compte',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-
-                          if (!_isLogin)
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Logo
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: TextField(
-                                controller: _name,
-                                textCapitalization: TextCapitalization.words,
-                                decoration: _dec('Nom', icon: Icons.person),
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Image.asset(
+                                'assets/images/logo.png',
+                                height: isPad ? 100 : 80,
+                                fit: BoxFit.contain,
                               ),
                             ),
-                          TextField(
-                            controller: _email,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: _dec('Email', icon: Icons.email),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _pass,
-                            obscureText: _obscure,
-                            decoration: _dec('Mot de passe', icon: Icons.lock).copyWith(
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscure ? Icons.visibility : Icons.visibility_off,
-                                ),
-                                onPressed: () =>
-                                    setState(() => _obscure = !_obscure),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
+                            _titleShimmer(
+                                _isLogin ? 'Connexion' : 'Créer un compte'),
+                            const SizedBox(height: 18),
 
-                          _primaryButton(
-                            label: _isLogin ? 'Se connecter' : 'S’inscrire',
-                            icon: _isLogin ? Icons.login : Icons.person_add,
-                            onPressed: _isLogin ? _signInEmail : _signUpEmail,
-                          ),
-                          const SizedBox(height: 10),
-                          TextButton(
-                            onPressed: _loading
-                                ? null
-                                : () => setState(() => _isLogin = !_isLogin),
-                            child: Text(
-                              _isLogin
-                                  ? 'Créer un compte'
-                                  : 'Déjà un compte ? Se connecter',
-                            ),
-                          ),
-
-                          const SizedBox(height: 8),
-                          Row(
-                            children: const [
-                              Expanded(child: Divider()),
+                            if (!_isLogin)
                               Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 8.0),
-                                child: Text('ou'),
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: TextField(
+                                  controller: _name,
+                                  textCapitalization:
+                                      TextCapitalization.words,
+                                  decoration: _dec('Nom', Icons.person),
+                                ),
                               ),
-                              Expanded(child: Divider()),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
+                            TextField(
+                              controller: _email,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: _dec('Email', Icons.email),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _pass,
+                              obscureText: _obscure,
+                              decoration: _dec('Mot de passe', Icons.lock)
+                                  .copyWith(
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscure
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                  ),
+                                  onPressed: () =>
+                                      setState(() => _obscure = !_obscure),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
 
-                          // Providers
-                          _primaryButton(
-                            label: 'Continuer avec Google',
-                            icon: Icons.g_mobiledata_rounded,
-                            onPressed: _signInWithGoogle,
-                          ),
-                          if (Platform.isIOS) ...[
+                            _gradientButton(
+                              label:
+                                  _isLogin ? 'Se connecter' : 'Créer le compte',
+                              icon: _isLogin ? Icons.login : Icons.person_add,
+                              onTap: _isLogin ? _signInEmail : _signUpEmail,
+                            ),
                             const SizedBox(height: 10),
-                            _primaryButton(
-                              label: 'Continuer avec Apple',
-                              icon: Icons.apple,
-                              onPressed: _signInWithApple,
+                            TextButton(
+                              onPressed: _loading
+                                  ? null
+                                  : () => setState(() => _isLogin = !_isLogin),
+                              child: Text(_isLogin
+                                  ? 'Créer un compte'
+                                  : 'Déjà un compte ? Se connecter'),
+                            ),
+
+                            const SizedBox(height: 10),
+                            Row(
+                              children: const [
+                                Expanded(child: Divider(color: Colors.white38)),
+                                Padding(
+                                  padding:
+                                      EdgeInsets.symmetric(horizontal: 8.0),
+                                  child: Text('ou',
+                                      style:
+                                          TextStyle(color: Colors.white70)),
+                                ),
+                                Expanded(child: Divider(color: Colors.white38)),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+
+                            _gradientButton(
+                              label: 'Continuer en invité',
+                              icon: Icons.gamepad_outlined,
+                              colors: const [
+                                Color(0xff00C2FF),
+                                Color(0xff7F5AF0),
+                              ],
+                              onTap: _guest,
+                            ),
+
+                            const SizedBox(height: 14),
+                            Text(
+                              '© AI NEGO — RGPD / grpd',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.75),
+                                fontSize: 12.5,
+                              ),
                             ),
                           ],
-
-                          const SizedBox(height: 16),
-                          _primaryButton(
-                            label: 'Continuer en invité',
-                            icon: Icons.videogame_asset,
-                            onPressed: _guest,
-                          ),
-
-                          const SizedBox(height: 14),
-                          Text(
-                            '© AI NEGO — RGPD / grpd',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(0.6),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -418,6 +390,32 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ],
       ),
+    );
+  }
+
+  // Soft colored blob
+  Widget _blob(Color color) {
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(seconds: 8),
+      tween: Tween(begin: 0, end: 1),
+      curve: Curves.easeInOut,
+      builder: (_, t, __) {
+        return Container(
+          width: 220 + 20 * t,
+          height: 220 + 20 * (1 - t),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.22),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.25),
+                blurRadius: 80,
+                spreadRadius: 40,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
