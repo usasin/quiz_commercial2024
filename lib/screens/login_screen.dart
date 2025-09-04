@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_print
 import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,25 +11,25 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with TickerProviderStateMixin {
-  // Controllers
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
+  // Controllers champs
   final _email = TextEditingController();
   final _pass  = TextEditingController();
   final _name  = TextEditingController();
 
   // State
-  bool _isLogin = true; // true = connexion, false = inscription
+  bool _isLogin = true;
   bool _obscure = true;
   bool _loading = false;
 
   // Animations
   late final AnimationController _bgCtrl =
-      AnimationController(vsync: this, duration: const Duration(seconds: 12))
-        ..repeat();
+      AnimationController(vsync: this, duration: const Duration(seconds: 12))..repeat();
   late final AnimationController _shimmerCtrl =
-      AnimationController(vsync: this, duration: const Duration(seconds: 2))
-        ..repeat(reverse: true);
+      AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+  // --- micro-animation du logo
+  late final AnimationController _logoCtrl =
+      AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
 
   // Helpers
   void _snack(String m) =>
@@ -37,11 +38,7 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _guarded(Future<void> Function() run) async {
     if (_loading) return;
     setState(() => _loading = true);
-    try {
-      await run();
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    try { await run(); } finally { if (mounted) setState(() => _loading = false); }
   }
 
   InputDecoration _dec(String label, IconData icon) => InputDecoration(
@@ -59,13 +56,11 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _createOrUpdateUserDoc(User u, {String? name}) async {
     final ref = FirebaseFirestore.instance.collection('users').doc(u.uid);
     final snap = await ref.get();
-
     await ref.set({
       'name': name ?? u.displayName ?? 'Invité',
       'email': u.email ?? '',
       'photoURL': u.photoURL ?? '',
     }, SetOptions(merge: true));
-
     if (!snap.exists) {
       await ref.set({
         'createdAt': FieldValue.serverTimestamp(),
@@ -79,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // Email / Password
+  // Email / password / invité
   Future<void> _signInEmail() => _guarded(() async {
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -89,9 +84,7 @@ class _LoginScreenState extends State<LoginScreen>
       await _createOrUpdateUserDoc(FirebaseAuth.instance.currentUser!);
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/chapter_menu');
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Erreur de connexion');
-    }
+    } on FirebaseAuthException catch (e) { _snack(e.message ?? 'Erreur de connexion'); }
   });
 
   Future<void> _signUpEmail() => _guarded(() async {
@@ -107,9 +100,7 @@ class _LoginScreenState extends State<LoginScreen>
       await _createOrUpdateUserDoc(cred.user!, name: _name.text.trim());
       _snack('Inscription réussie, connecte-toi 👍');
       setState(() { _isLogin = true; _pass.clear(); });
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Erreur inscription');
-    }
+    } on FirebaseAuthException catch (e) { _snack(e.message ?? 'Erreur inscription'); }
   });
 
   Future<void> _guest() => _guarded(() async {
@@ -118,55 +109,32 @@ class _LoginScreenState extends State<LoginScreen>
       await _createOrUpdateUserDoc(res.user!, name: 'Invité');
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/chapter_menu');
-    } on FirebaseAuthException catch (e) {
-      _snack('Invité : ${e.message}');
-    }
+    } on FirebaseAuthException catch (e) { _snack('Invité : ${e.message}'); }
   });
 
-  // UI pieces
+  // UI bits
   Widget _gradientButton({
     required String label,
     required VoidCallback? onTap,
     IconData? icon,
     List<Color>? colors,
   }) {
-    final gradient = colors ??
-        [const Color(0xff7F5AF0), const Color(0xff2CB67D)]; // violet -> vert
-
+    final gradient = colors ?? [const Color(0xff7F5AF0), const Color(0xff2CB67D)];
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: gradient),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: gradient.last.withOpacity(0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: gradient.last.withOpacity(0.35), blurRadius: 20, offset: const Offset(0, 10))],
       ),
       child: InkWell(
         onTap: _loading ? null : onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, color: Colors.white),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ],
-          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            if (icon != null) ...[Icon(icon, color: Colors.white), const SizedBox(width: 8)],
+            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+          ]),
         ),
       ),
     );
@@ -176,30 +144,62 @@ class _LoginScreenState extends State<LoginScreen>
     return AnimatedBuilder(
       animation: _shimmerCtrl,
       builder: (context, _) {
-        final t = _shimmerCtrl.value; // 0..1
+        final t = _shimmerCtrl.value;
         return ShaderMask(
           blendMode: BlendMode.srcIn,
-          shaderCallback: (bounds) {
-            return LinearGradient(
-              begin: Alignment(-1 + 2 * t, 0),
-              end: const Alignment(1, 0),
-              colors: const [
-                Color(0xff2CB67D), // green
-                Color(0xff7F5AF0), // purple
-                Color(0xff00C2FF), // cyan
-              ],
-              stops: const [0.0, 0.5, 1.0],
-            ).createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height));
-          },
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
+          shaderCallback: (bounds) => LinearGradient(
+            begin: Alignment(-1 + 2 * t, 0),
+            end: const Alignment(1, 0),
+            colors: const [Color(0xff2CB67D), Color(0xff7F5AF0), Color(0xff00C2FF)],
+            stops: const [0.0, 0.5, 1.0],
+          ).createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
+          child: Text(text, textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 0.2)),
+        );
+      },
+    );
+  }
+
+  // --- LOGO animé (breathing + glow)
+  Widget _animatedLogo(bool isPad) {
+    return AnimatedBuilder(
+      animation: _logoCtrl,
+      builder: (_, __) {
+        // t en 0..1, ease sinusoïdale
+        final t = (1 - math.cos(2 * math.pi * _logoCtrl.value)) / 2;
+        final scale = 0.98 + 0.06 * t; // 0.98 -> 1.04
+        final angle = (-3 + 6 * t) * math.pi / 180; // -3° -> +3°
+        final glow = 0.6 + 0.4 * t;
+
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: isPad ? 120 : 96,
+              height: isPad ? 120 : 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xff7F5AF0).withOpacity(0.25 * glow),
+                    blurRadius: 40 + 30 * t,
+                    spreadRadius: 6 + 4 * t,
+                  ),
+                ],
+              ),
             ),
-          ),
+            Transform.rotate(
+              angle: angle,
+              child: Transform.scale(
+                scale: scale,
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  height: isPad ? 100 : 80,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -209,6 +209,7 @@ class _LoginScreenState extends State<LoginScreen>
   void dispose() {
     _bgCtrl.dispose();
     _shimmerCtrl.dispose();
+    _logoCtrl.dispose();
     _email.dispose();
     _pass.dispose();
     _name.dispose();
@@ -223,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // Animated gradient background
+          // fond dégradé animé
           Positioned.fill(
             child: AnimatedBuilder(
               animation: _bgCtrl,
@@ -234,37 +235,24 @@ class _LoginScreenState extends State<LoginScreen>
                     gradient: LinearGradient(
                       begin: Alignment(-0.8 + t, -1),
                       end: Alignment(1, 0.8 - t),
-                      colors: const [
-                        Color(0xff0F1020),
-                        Color(0xff121629),
-                        Color(0xff1F2544),
-                      ],
+                      colors: const [Color(0xff0F1020), Color(0xff121629), Color(0xff1F2544)],
                     ),
                   ),
                 );
               },
             ),
           ),
-          // Soft blobs for depth
-          Positioned(
-            left: -80,
-            top: -40,
-            child: _blob(const Color(0xFF7F5AF0)),
-          ),
-          Positioned(
-            right: -60,
-            bottom: -60,
-            child: _blob(const Color(0xFF2CB67D)),
-          ),
+          // blobs doux
+          Positioned(left: -80, top: -40, child: _blob(const Color(0xFF7F5AF0))),
+          Positioned(right: -60, bottom: -60, child: _blob(const Color(0xFF2CB67D))),
 
-          // Glass card
+          // carte verre dépoli
           SafeArea(
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: isPad ? 520 : 420),
                 child: Padding(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: isPad ? 24 : 16, vertical: 16),
+                  padding: EdgeInsets.symmetric(horizontal: isPad ? 24 : 16, vertical: 16),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(24),
                     child: BackdropFilter(
@@ -274,24 +262,17 @@ class _LoginScreenState extends State<LoginScreen>
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.20),
-                          ),
+                          border: Border.all(color: Colors.white.withOpacity(0.20)),
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Logo
+                            // --- logo animé
                             Padding(
                               padding: const EdgeInsets.only(bottom: 8),
-                              child: Image.asset(
-                                'assets/images/logo.png',
-                                height: isPad ? 100 : 80,
-                                fit: BoxFit.contain,
-                              ),
+                              child: _animatedLogo(isPad),
                             ),
-                            _titleShimmer(
-                                _isLogin ? 'Connexion' : 'Créer un compte'),
+                            _titleShimmer(_isLogin ? 'Connexion' : 'Créer un compte'),
                             const SizedBox(height: 18),
 
                             if (!_isLogin)
@@ -299,8 +280,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: TextField(
                                   controller: _name,
-                                  textCapitalization:
-                                      TextCapitalization.words,
+                                  textCapitalization: TextCapitalization.words,
                                   decoration: _dec('Nom', Icons.person),
                                 ),
                               ),
@@ -313,72 +293,48 @@ class _LoginScreenState extends State<LoginScreen>
                             TextField(
                               controller: _pass,
                               obscureText: _obscure,
-                              decoration: _dec('Mot de passe', Icons.lock)
-                                  .copyWith(
+                              decoration: _dec('Mot de passe', Icons.lock).copyWith(
                                 suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscure
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
-                                  ),
-                                  onPressed: () =>
-                                      setState(() => _obscure = !_obscure),
+                                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                                  onPressed: () => setState(() => _obscure = !_obscure),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 18),
 
                             _gradientButton(
-                              label:
-                                  _isLogin ? 'Se connecter' : 'Créer le compte',
+                              label: _isLogin ? 'Se connecter' : 'Créer le compte',
                               icon: _isLogin ? Icons.login : Icons.person_add,
                               onTap: _isLogin ? _signInEmail : _signUpEmail,
                             ),
                             const SizedBox(height: 10),
                             TextButton(
-                              onPressed: _loading
-                                  ? null
-                                  : () => setState(() => _isLogin = !_isLogin),
-                              child: Text(_isLogin
-                                  ? 'Créer un compte'
-                                  : 'Déjà un compte ? Se connecter'),
+                              onPressed: _loading ? null : () => setState(() => _isLogin = !_isLogin),
+                              child: Text(_isLogin ? 'Créer un compte' : 'Déjà un compte ? Se connecter'),
                             ),
 
                             const SizedBox(height: 10),
-                            Row(
-                              children: const [
-                                Expanded(child: Divider(color: Colors.white38)),
-                                Padding(
-                                  padding:
-                                      EdgeInsets.symmetric(horizontal: 8.0),
-                                  child: Text('ou',
-                                      style:
-                                          TextStyle(color: Colors.white70)),
-                                ),
-                                Expanded(child: Divider(color: Colors.white38)),
-                              ],
-                            ),
+                            Row(children: const [
+                              Expanded(child: Divider(color: Colors.white38)),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                                child: Text('ou', style: TextStyle(color: Colors.white70)),
+                              ),
+                              Expanded(child: Divider(color: Colors.white38)),
+                            ]),
                             const SizedBox(height: 10),
 
                             _gradientButton(
                               label: 'Continuer en invité',
                               icon: Icons.gamepad_outlined,
-                              colors: const [
-                                Color(0xff00C2FF),
-                                Color(0xff7F5AF0),
-                              ],
+                              colors: const [Color(0xff00C2FF), Color(0xff7F5AF0)],
                               onTap: _guest,
                             ),
 
                             const SizedBox(height: 14),
-                            Text(
-                              '© AI NEGO — RGPD / grpd',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.75),
-                                fontSize: 12.5,
-                              ),
-                            ),
+                            Text('© AI NEGO — RGPD / grpd',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 12.5)),
                           ],
                         ),
                       ),
@@ -393,29 +349,21 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // Soft colored blob
+  // blob décoratif
   Widget _blob(Color color) {
     return TweenAnimationBuilder<double>(
       duration: const Duration(seconds: 8),
       tween: Tween(begin: 0, end: 1),
       curve: Curves.easeInOut,
-      builder: (_, t, __) {
-        return Container(
-          width: 220 + 20 * t,
-          height: 220 + 20 * (1 - t),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.22),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.25),
-                blurRadius: 80,
-                spreadRadius: 40,
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (_, t, __) => Container(
+        width: 220 + 20 * t,
+        height: 220 + 20 * (1 - t),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.22),
+          shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: color.withOpacity(0.25), blurRadius: 80, spreadRadius: 40)],
+        ),
+      ),
     );
   }
 }
