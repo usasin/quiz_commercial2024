@@ -2,150 +2,154 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- -------------------------------------------------------------------- -->
-  <!-- 1. Infos de base                                                     -->
-  <!-- -------------------------------------------------------------------- -->
-  <key>CFBundleDevelopmentRegion</key>
-  <string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 1. Infos de base                                                     -->
+	<!-- -------------------------------------------------------------------- -->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
 
-  <!-- Nom affiché sous l’icône -->
-  <key>CFBundleDisplayName</key>
-  <string>AI NEGO – Quiz Vente Pro</string>
+	<!-- Nom affiché sous l’icône -->
+	<key>CFBundleDisplayName</key>
+	<string>AI NEGO – Quiz Vente Pro</string>
 
-  <key>CFBundleExecutable</key>
-  <string>$(EXECUTABLE_NAME)</string>
-  <key>CFBundleIdentifier</key>
-  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-  <key>CFBundleInfoDictionaryVersion</key>
-  <string>6.0</string>
-  <key>CFBundleName</key>
-  <string>quiz_commercial2024</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>CFBundleShortVersionString</key>
-  <string>$(FLUTTER_BUILD_NAME)</string>
-  <key>CFBundleSignature</key>
-  <string>????</string>
-  <key>CFBundleVersion</key>
-  <string>$(FLUTTER_BUILD_NUMBER)</string>
-  <key>LSRequiresIPhoneOS</key>
-  <true/>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>quiz_commercial2024</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
 
-  <!-- Splash / Launch screen -->
-  <key>UILaunchStoryboardName</key>
-  <string>LaunchScreen</string>
-  <key>UIMainStoryboardFile</key>
-  <string>Main</string>
+	<!-- Splash / Launch screen -->
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
 
-  <!-- Orientation support -->
-  <key>UISupportedInterfaceOrientations</key>
-  <array>
-    <string>UIInterfaceOrientationPortrait</string>
-    <string>UIInterfaceOrientationLandscapeLeft</string>
-    <string>UIInterfaceOrientationLandscapeRight</string>
-  </array>
-  <key>UISupportedInterfaceOrientations~ipad</key>
-  <array>
-    <string>UIInterfaceOrientationPortrait</string>
-    <string>UIInterfaceOrientationPortraitUpsideDown</string>
-    <string>UIInterfaceOrientationLandscapeLeft</string>
-    <string>UIInterfaceOrientationLandscapeRight</string>
-  </array>
+	<!-- Orientation support -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
 
-  <!-- Performance & compatibilité -->
-  <key>CADisableMinimumFrameDurationOnPhone</key>
-  <true/>
-  <key>UIApplicationSupportsIndirectInputEvents</key>
-  <true/>
+	<!-- Performance & compatibilité -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 
-  <!-- -------------------------------------------------------------------- -->
-  <!-- 2. Modes d’arrière-plan                                              -->
-  <!-- -------------------------------------------------------------------- -->
-  <key>UIBackgroundModes</key>
-  <array>
-    <string>audio</string>
-    <string>remote-notification</string> <!-- pour FCM / notifications push -->
-  </array>
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 2. URL schemes (Google Sign-In)                                      -->
+	<!-- -------------------------------------------------------------------- -->
+	<!-- Utilise REVERSED_CLIENT_ID de GoogleService-Info.plist -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.163745254135-1504sel9h687l09tjjvhkc4pdb46j990</string>
+			</array>
+		</dict>
+	</array>
 
-  <!-- -------------------------------------------------------------------- -->
-  <!-- 3. Chaînes « Privacy » (dialogues système)                           -->
-  <!-- -------------------------------------------------------------------- -->
-  <!-- Micro/BT/Speech/Tracking déjà présents -->
-  <key>NSMicrophoneUsageDescription</key>
-  <string>Nous avons besoin du micro pour la reconnaissance vocale.</string>
-  <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>Utilisé pour diffuser l’audio via Bluetooth.</string>
-  <key>NSSpeechRecognitionUsageDescription</key>
-  <string>Permet d’améliorer les fonctionnalités de reconnaissance vocale.</string>
-  <key>NSUserTrackingUsageDescription</key>
-  <string>Nous utilisons certaines données pour améliorer votre expérience utilisateur.</string>
+	<!-- Facultatif mais utile si l'app vérifie la présence d'apps Google -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>google</string>
+		<string>com.googleusercontent.apps.163745254135-1504sel9h687l09tjjvhkc4pdb46j990</string>
+	</array>
 
-  <!-- Nouvelles clés privacy -->
-  <key>NSCameraUsageDescription</key>
-  <string>Permet de prendre une photo de profil.</string>
-  <key>NSPhotoLibraryUsageDescription</key>
-  <string>Permet de choisir une image dans votre photothèque.</string>
-  <key>NSPhotoLibraryAddUsageDescription</key>
-  <string>Permet d’enregistrer votre avatar dans la photothèque.</string>
-  <key>NSUserNotificationUsageDescription</key>
-  <string>Nous envoyons des rappels liés à vos quiz.</string>
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 3. Modes d’arrière-plan                                              -->
+	<!-- -------------------------------------------------------------------- -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>remote-notification</string> <!-- pour FCM / notifications push -->
+	</array>
 
-  <!-- -------------------------------------------------------------------- -->
-  <!-- 4. Google Mobile Ads & ATT                                           -->
-  <!-- -------------------------------------------------------------------- -->
-  <key>GADApplicationIdentifier</key>
-  <string>ca-app-pub-1360261396564293~2234086529</string>
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 4. Chaînes « Privacy » (dialogues système)                           -->
+	<!-- -------------------------------------------------------------------- -->
+	<!-- Micro/BT/Speech/Tracking -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Nous avons besoin du micro pour la reconnaissance vocale.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Utilisé pour diffuser l’audio via Bluetooth.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Permet d’améliorer les fonctionnalités de reconnaissance vocale.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Nous utilisons certaines données pour améliorer votre expérience utilisateur.</string>
 
-  <!-- Réseaux de tracking via SKAdNetwork (liste minimale Google) -->
-  <key>SKAdNetworkItems</key>
-  <array>
-    <dict>
-      <key>SKAdNetworkIdentifier</key>
-      <string>cstr6suwn9.skadnetwork</string>
-    </dict>
-    <dict>
-      <key>SKAdNetworkIdentifier</key>
-      <string>4fzdc2evr5.skadnetwork</string>
-    </dict>
-    <dict>
-      <key>SKAdNetworkIdentifier</key>
-      <string>v9wttpbfk9.skadnetwork</string>
-    </dict>
-    <!-- Ajoute ici d’autres réseaux si nécessaire -->
-  </array>
+	<!-- Caméra / Photos -->
+	<key>NSCameraUsageDescription</key>
+	<string>Permet de prendre une photo de profil.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Permet de choisir une image dans votre photothèque.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Permet d’enregistrer votre avatar dans la photothèque.</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Nous envoyons des rappels liés à vos quiz.</string>
 
-  <!-- -------------------------------------------------------------------- -->
-  <!-- 5. ATS (App Transport Security)                                      -->
-  <!-- -------------------------------------------------------------------- -->
-  <key>NSAppTransportSecurity</key>
-  <dict>
-    <key>NSAllowsArbitraryLoads</key>
-    <false/>
-  </dict>
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 5. Google Mobile Ads & ATT                                           -->
+	<!-- -------------------------------------------------------------------- -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-1360261396564293~2234086529</string>
 
-  <!-- -------------------------------------------------------------------- -->
-  <!-- 6. URL Schemes (Google Sign-In)                                      -->
-  <!--     *Evite le crash après le flow Google*                            -->
-  <!-- -------------------------------------------------------------------- -->
-  <key>CFBundleURLTypes</key>
-  <array>
-    <dict>
-      <key>CFBundleTypeRole</key>
-      <string>Editor</string>
-      <key>CFBundleURLSchemes</key>
-      <array>
-        <!-- REVERSED_CLIENT_ID depuis GoogleService-Info.plist -->
-        <string>com.googleusercontent.apps.163745254135-1504sel9h687l09tjjvhkc4pdb46j990</string>
-      </array>
-    </dict>
-  </array>
+	<!-- Réseaux de tracking via SKAdNetwork (liste minimale Google) -->
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>4fzdc2evr5.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>v9wttpbfk9.skadnetwork</string>
+		</dict>
+		<!-- Ajoute ici d’autres réseaux si nécessaire -->
+	</array>
 
-  <!-- iOS 9+ : autoriser la détection des schémas utilisés par Google -->
-  <key>LSApplicationQueriesSchemes</key>
-  <array>
-    <string>google</string>
-    <string>com.googleusercontent.apps.163745254135-1504sel9h687l09tjjvhkc4pdb46j990</string>
-  </array>
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 6. ATS (App Transport Security)                                      -->
+	<!-- -------------------------------------------------------------------- -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+	</dict>
 
+	<!-- -------------------------------------------------------------------- -->
+	<!-- 7. Export Compliance (évite l’erreur 422 sur TestFlight)             -->
+	<!-- -------------------------------------------------------------------- -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
