@@ -43,14 +43,6 @@ class _ChallengeQuizScreenState extends State<ChallengeQuizScreen>
   bool _finished        = false;
   bool _loading         = true;
 
-
-// ───────── Comptage erreurs & seuil ─────────
-// _wrongCount compte les erreurs,
-// on autorise 2 erreurs au maximum (>=3 → défaite)
-  int  _wrongCount         = 0;
-  static const int _maxErrors = 3;
-
-
   // ───────── TTS & timer ─────────
   bool  _ttsEnabled   = false;
   int   _timerSeconds = 25;
@@ -88,11 +80,11 @@ class _ChallengeQuizScreenState extends State<ChallengeQuizScreen>
       limit: 10,
     );
 
+    // Aucune question → on informe et on sort
     if (raw.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Aucune question disponible pour ce chapitre')),
+        const SnackBar(content: Text('Aucune question disponible pour ce chapitre')),
       );
       Navigator.pop(context);
       return;
@@ -103,6 +95,7 @@ class _ChallengeQuizScreenState extends State<ChallengeQuizScreen>
       final correctIdx = q['correctAnswer'] as int;
       final pts        = (q['points'] as int?) ?? 1;
 
+      // Mélange des réponses pour chaque partie
       final indices    = List<int>.generate(opts.length, (i) => i)..shuffle(_rand);
       final shuffled   = indices.map((i) => opts[i]).toList();
       final newCorrect = indices.indexOf(correctIdx);
@@ -142,17 +135,16 @@ class _ChallengeQuizScreenState extends State<ChallengeQuizScreen>
     _timer?.cancel();
     final now        = DateTime.now().millisecondsSinceEpoch;
     final timeSpent  = now - _questionStart;
-    final bonus      = _timerSeconds;
+    final bonus      = _timerSeconds; // 0 si déjà écoulé
     final item       = _questions[_currentQuestion];
     final correctIdx = item['correctAnswer'] as int;
     final pts        = item['points'] as int;
 
-    // son + score / comptage erreurs
+    // son + score
     if (selectedIndex == correctIdx) {
       _score += pts + bonus;
       await _audioPlayer.setAsset('assets/sounds/correct.mp3');
     } else {
-      _wrongCount++;
       await _audioPlayer.setAsset('assets/sounds/incorrect.mp3');
     }
     _audioPlayer.play();
@@ -166,41 +158,21 @@ class _ChallengeQuizScreenState extends State<ChallengeQuizScreen>
 
     await Future.delayed(const Duration(milliseconds: 800));
 
-    // si pas la dernière question, on continue
     if (_currentQuestion < _questions.length - 1) {
       setState(() => _currentQuestion++);
       _startTimer();
       _speakQuestion();
-      return;
-    }
-
-    // ───────── fin du quiz ─────────
-// 1) Enregistre le score de l’utilisateur
-    await _challengeService.updatePlayerScore(
-      challengeId: challengeId,
-      uid        : uid,
-      score      : _score,
-      finished   : true,
-    );
-
-// 2) En mode solo, calcule le score IA selon votre règle
-    if (widget.challenge.isSolo == true) {
-      final int iaScore = (_wrongCount >= _maxErrors)
-      // si 3 erreurs ou plus → IA gagne d’un point
-          ? _score + 1
-      // sinon (erreurs ≤ 2) → IA perd, on lui donne score inférieur
-          : max(0, _score - 1);
-
+    } else {
+      // fin : score + finished
       await _challengeService.updatePlayerScore(
         challengeId: challengeId,
-        uid        : 'IA',
-        score      : iaScore,
+        uid        : uid,
+        score      : _score,
         finished   : true,
       );
+      if (!mounted) return;
+      setState(() => _finished = true);
     }
-
-    if (!mounted) return;
-    setState(() => _finished = true);
   }
 
   // ───────── TTS ─────────
@@ -212,7 +184,7 @@ class _ChallengeQuizScreenState extends State<ChallengeQuizScreen>
     }
   }
 
-  // ───────── Widgets utilitaires (inchangés) ─────────
+  // ───────── Widgets utilitaires ─────────
   Widget _buildStatCard(String label, String value) => Column(
     children: [
       AutoSizeText(value,
@@ -364,6 +336,7 @@ class _ChallengeQuizScreenState extends State<ChallengeQuizScreen>
     }
 
     if (_finished) {
+      // On attend l’autre joueur avant d’afficher le résultat
       return StreamBuilder<ChallengeModel>(
         stream: _challengeService.listenToChallenge(challengeId),
         builder: (_, snap) {
