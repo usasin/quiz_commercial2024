@@ -1,5 +1,4 @@
-// lib/screens/challenge_home_menu.dart
-
+// challenge_home_menu.dart
 import 'dart:async';
 import 'dart:ui';
 
@@ -7,11 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../gradient_text.dart';
 import 'invite_player_screen.dart';
 import 'challenge_lobby.dart';
 import '../drawer/custom_bottom_nav_bar.dart';
-import '../rotating_glow_border.dart';
 
 class ChallengeHomeMenu extends StatefulWidget {
   const ChallengeHomeMenu({Key? key}) : super(key: key);
@@ -82,6 +79,7 @@ class _ChallengeHomeMenuState extends State<ChallengeHomeMenu> {
         actions: [
           TextButton(
             onPressed: () {
+              // Mettre à jour l’invitation en "declined"
               FirebaseFirestore.instance
                   .collection('invitations')
                   .doc(inviteId)
@@ -92,6 +90,7 @@ class _ChallengeHomeMenuState extends State<ChallengeHomeMenu> {
           ),
           ElevatedButton(
             onPressed: () {
+              // Accepter : passe en "accepted" et on ouvre le lobby
               FirebaseFirestore.instance
                   .collection('invitations')
                   .doc(inviteId)
@@ -124,49 +123,44 @@ class _ChallengeHomeMenuState extends State<ChallengeHomeMenu> {
       body: Stack(
         children: [
           Image.asset(
-            'assets/images/mode en ligne.png',
+            'assets/images/backgroundlogin.jpg',
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
           ),
           BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 1, sigmaY: 1),
-            child: Container(color: Colors.black.withOpacity(0.8)),
+            filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+            child: Container(color: Colors.black.withOpacity(0.4)),
           ),
           Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  GradientText(
+                  const Text(
                     'Défi en ligne',
-                    style: const TextStyle(
-                      fontSize: 42,
+                    style: TextStyle(
+                      fontSize: 32,
                       fontWeight: FontWeight.bold,
-                    ),
-                    gradient: const LinearGradient(
-                      colors: [
-                        Colors.amber,
-                        Colors.orangeAccent,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2)),
                       ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
                     ),
                   ),
-
                   const SizedBox(height: 40),
                   _buildBigButton(
                     context,
                     icon: Icons.person_add,
                     label: 'Inviter un joueur',
-                    color: Colors.deepPurple,
+                    color: Colors.indigo,
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(
-                          builder: (_) => const InvitePlayerScreen()),
+                      MaterialPageRoute(builder: (_) => const InvitePlayerScreen()),
                     ),
                   ),
+                  // Le bouton "Mes défis reçus" et "Rejoindre avec un code" ont été supprimés
                 ],
               ),
             ),
@@ -188,34 +182,22 @@ class _ChallengeHomeMenuState extends State<ChallengeHomeMenu> {
         required Color color,
         required VoidCallback onTap,
       }) {
-    return RotatingGlowBorder(
-      borderWidth: 4,
-      borderRadius: 15,
-      colors: const [
-        Colors.indigoAccent,
-        Colors.white,
-        Colors.indigoAccent,
-      ],
-      duration: const Duration(seconds: 3),
-      child: SizedBox(
-        width: double.infinity,
-        height: 65,
-        child: ElevatedButton.icon(
-          icon: Icon(icon, size: 28),
-          label: Text(
-            label,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+    return SizedBox(
+      width: double.infinity,
+      height: 65,
+      child: ElevatedButton.icon(
+        icon: Icon(icon, size: 28),
+        label: Text(label, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          elevation: 6,
+          shadowColor: Colors.black45,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
           ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            foregroundColor: Colors.white,
-            elevation: 0, // Le halo fait l’effet visuel
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-            ),
-          ),
-          onPressed: onTap,
         ),
+        onPressed: onTap,
       ),
     );
   }
