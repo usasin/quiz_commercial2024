@@ -1,5 +1,5 @@
+# ios/Podfile
 platform :ios, '13.0'
-
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 def flutter_root
@@ -7,32 +7,38 @@ def flutter_root
     File.join('..', 'Flutter', 'Generated.xcconfig'),
     __FILE__
   )
-  raise "#{generated_xcode_build_settings} must exist. Run 'flutter pub get' first." unless File.exist?(generated_xcode_build_settings)
+  unless File.exist?(generated_xcode_build_settings)
+    raise "#{generated_xcode_build_settings} must exist. Run 'flutter pub get' first."
+  end
   File.foreach(generated_xcode_build_settings) do |line|
-    return Regexp.last_match(1).strip if line =~ /FLUTTER_ROOT\=(.*)/
+    if line =~ /FLUTTER_ROOT\=(.*)/
+      return Regexp.last_match(1).strip
+    end
   end
   raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings}"
 end
 
-require File.expand_path(File.join('packages','flutter_tools','bin','podhelper'), flutter_root)
+require File.expand_path(
+  File.join('packages', 'flutter_tools', 'bin', 'podhelper'),
+  flutter_root
+)
 
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  # Garder les frameworks en statique (Firebase/Ads & co)
-  use_frameworks! :linkage => :static
-  # ⚠️ NE PAS utiliser use_modular_headers!
+  # ❌ A ENLEVER (c’est ça qui casse Flutter/Flutter.h)
+  # use_frameworks!
+  # use_modular_headers!
 
   flutter_install_all_ios_pods(File.dirname(File.realpath(__FILE__)))
 end
 
 post_install do |installer|
-  # Aligner tous les pods sur iOS 13
   installer.pods_project.targets.each do |t|
+    flutter_additional_ios_build_settings(t)
     t.build_configurations.each do |config|
+      # Cohérent avec la plateforme choisie
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      config.build_settings['SWIFT_VERSION'] = '5.0'
     end
   end
-  flutter_post_install(installer) if defined?(flutter_post_install)
 end
