@@ -143,7 +143,7 @@ Future<void> _bootstrap() async {
     // ne bloque pas le lancement
   }
 
-  // 3) Notifs locales
+    // 3) Notifs locales
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
   const iosInit = DarwinInitializationSettings(
     requestAlertPermission: true,
@@ -168,7 +168,19 @@ Future<void> _bootstrap() async {
     await androidImpl?.createNotificationChannel(channel);
   }
 
-  // 5) FCM & permissions (APRES affichage de l’UI)
+  // 5) 🔴 ATT (iOS/iPadOS) PUIS AdMob — doit passer AVANT toute collecte pub
+  try {
+    if (Platform.isIOS) {
+      await Future.delayed(const Duration(milliseconds: 300)); // laisser l'UI apparaître
+      final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+      if (status == TrackingStatus.notDetermined) {
+        await AppTrackingTransparency.requestTrackingAuthorization();
+      }
+    }
+    await MobileAds.instance.initialize(); // init AdMob seulement après ATT
+  } catch (_) {}
+
+  // 6) ✅ FCM & permissions (APRÈS ATT)
   try {
     await FirebaseMessaging.instance.requestPermission();
     if (Platform.isIOS) {
@@ -180,26 +192,12 @@ Future<void> _bootstrap() async {
     }
   } catch (_) {}
 
-  // 6) Handlers FCM
+  // 7) Handlers FCM
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   FirebaseMessaging.onMessage.listen(_showLocalNotification);
   FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
-  // 7) **ATT (iOS/iPadOS) PUIS AdMob**  ⟵ IMPORTANT POUR APPLE
-  try {
-    if (Platform.isIOS) {
-      // Laisse l’UI s’afficher avant le pop-up
-      await Future.delayed(const Duration(milliseconds: 300));
-      final status = await AppTrackingTransparency.trackingAuthorizationStatus;
-      if (status == TrackingStatus.notDetermined) {
-        await AppTrackingTransparency.requestTrackingAuthorization();
-      }
-      // (si denied -> on continue sans IDFA ; si authorized -> OK)
-    }
-    // Initialise AdMob UNIQUEMENT après la demande ATT
-    await MobileAds.instance.initialize();
-  } catch (_) {}
-
+  
   // 8) Token FCM -> Firestore
   FirebaseAuth.instance.authStateChanges().listen((user) async {
     if (user != null) {
