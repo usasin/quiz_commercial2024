@@ -14,6 +14,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 
 import 'firebase_options.dart';
 import 'theme_provider.dart';
@@ -136,8 +137,11 @@ Future<void> _bootstrap() async {
     await Firebase
         .initializeApp(options: DefaultFirebaseOptions.currentPlatform)
         .timeout(const Duration(seconds: 10));
-  } on TimeoutException { /* continue avec valeurs par défaut */ }
-    catch (e) { /* ne bloque pas le lancement */ }
+  } on TimeoutException {
+    // continue avec valeurs par défaut
+  } catch (e) {
+    // ne bloque pas le lancement
+  }
 
   // 3) Notifs locales
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -151,6 +155,7 @@ Future<void> _bootstrap() async {
     onDidReceiveNotificationResponse: _handleNotificationResponse,
   );
 
+  // 4) Android : créer le channel
   if (Platform.isAndroid) {
     const channel = AndroidNotificationChannel(
       'invites_channel',
@@ -163,7 +168,7 @@ Future<void> _bootstrap() async {
     await androidImpl?.createNotificationChannel(channel);
   }
 
-  // 4) FCM & permissions (APRES affichage de l’UI)
+  // 5) FCM & permissions (APRES affichage de l’UI)
   try {
     await FirebaseMessaging.instance.requestPermission();
     if (Platform.isIOS) {
@@ -175,15 +180,27 @@ Future<void> _bootstrap() async {
     }
   } catch (_) {}
 
-  // 5) Handlers FCM
+  // 6) Handlers FCM
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   FirebaseMessaging.onMessage.listen(_showLocalNotification);
   FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
-  // 6) Mobile Ads (tente mais ne bloque pas)
-  try { await MobileAds.instance.initialize(); } catch (_) {}
+  // 7) **ATT (iOS/iPadOS) PUIS AdMob**  ⟵ IMPORTANT POUR APPLE
+  try {
+    if (Platform.isIOS) {
+      // Laisse l’UI s’afficher avant le pop-up
+      await Future.delayed(const Duration(milliseconds: 300));
+      final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+      if (status == TrackingStatus.notDetermined) {
+        await AppTrackingTransparency.requestTrackingAuthorization();
+      }
+      // (si denied -> on continue sans IDFA ; si authorized -> OK)
+    }
+    // Initialise AdMob UNIQUEMENT après la demande ATT
+    await MobileAds.instance.initialize();
+  } catch (_) {}
 
-  // 7) Token FCM -> Firestore
+  // 8) Token FCM -> Firestore
   FirebaseAuth.instance.authStateChanges().listen((user) async {
     if (user != null) {
       final fcm = FirebaseMessaging.instance;
@@ -200,6 +217,7 @@ Future<void> _bootstrap() async {
     }
   });
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
