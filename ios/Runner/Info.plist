@@ -101,7 +101,8 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Permet d’améliorer les fonctionnalités de reconnaissance vocale.</string>
 	<key>NSUserTrackingUsageDescription</key>
-	<string>Nous utilisons certaines données pour améliorer votre expérience utilisateur.</string>
+	<string>Nous utilisons l’identifiant publicitaire (IDFA) pour financer l’app via des publicités. Votre consentement permet des annonces plus pertinentes.</string>
+
 
 	<!-- Caméra / Photos -->
 	<key>NSCameraUsageDescription</key>
