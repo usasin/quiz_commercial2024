@@ -1,0 +1,58 @@
+{
+  "app.name": "Sales Script Coach",
+
+  "nav.levels": "Journey",
+  "nav.learn": "Learn",
+  "nav.toolbox": "Tools",
+  "nav.profile": "Profile",
+
+  "login.title": "Sales Script Coach",
+  "login.subtitle": "Improve your sales skills with short lessons and guided quizzes.",
+  "login.email_button": "Sign in with email",
+  "login.google_button": "Continue with Google",
+  "login.apple_button": "Continue with Apple",
+  "login.or": "or",
+  "login.error.generic": "Something went wrong. Please try again.",
+  "login.error.network": "Connection issue. Please check your internet.",
+
+  "levels.title": "Journey",
+  "levels.hero.title": "Continue your journey",
+  "levels.hero.subtitle": "Progress step by step through your sales script.",
+  "levels.hero.progress_label": "Out of {count} chapters",
+  "levels.section_title": "Your sales journey",
+  "levels.chapter.modules_count": "{count} module(s)",
+  "levels.chapter.completed": "Chapter completed",
+
+  "modules.header.subtitle": "Chapter modules",
+  "modules.header.hint": "Start by reading the lessons, then unlock each level.",
+  "modules.module.progress_label": "Module progress",
+  "modules.module.button.learn": "Learn",
+  "modules.module.level1": "Level 1",
+  "modules.module.level2": "Level 2",
+  "modules.module.level3": "Level 3",
+
+  "lessons.header.hint": "Read the lessons carefully, then start the quiz that matches your level.",
+  "lessons.empty": "No lesson available for this module.",
+  "lessons.footer.level1": "Start level 1",
+  "lessons.footer.level2": "Continue with level 2",
+  "lessons.footer.level3": "Continue with level 3",
+  "lessons.footer.all_validated": "All levels validated (replay level 3)",
+
+  "quiz.title": "Quiz",
+  "quiz.button.next": "Next",
+  "quiz.button.validate": "Validate",
+  "quiz.result.success_title": "Well done!",
+  "quiz.result.failure_title": "Almost there!",
+
+  "profile.title": "Profile",
+  "profile.section.progress": "Your progress",
+  "profile.stats.xp": "XP",
+  "profile.stats.streak": "Streak (days)",
+  "profile.stats.total_score": "Total score",
+  "profile.stats.best_area": "Best mastered area",
+  "profile.logout": "Log out",
+  "profile.logout.confirm_title": "Log out",
+  "profile.logout.confirm_text": "Do you really want to log out?",
+  "profile.logout.cancel": "Cancel",
+  "profile.logout.confirm_button": "Log out"
+}

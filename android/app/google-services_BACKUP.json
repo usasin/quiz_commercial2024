@@ -1,0 +1,80 @@
+{
+  "project_info": {
+    "project_number": "136945913684",
+    "firebase_url": "https://emploiboost-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "emploiboost",
+    "storage_bucket": "emploiboost.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136945913684:android:9ea3294884bf72541d02c1",
+        "android_client_info": {
+          "package_name": "com.emploiboost.emploiboost"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "136945913684-15d5888pt1j4dfv3m9a2cnvgi6qi2569.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.emploiboost.emploiboost",
+            "certificate_hash": "00d7978e6167110cbf03018f5fd0a4870ccc5304"
+          }
+        },
+        {
+          "client_id": "136945913684-iepr76mh2vndlp5j5fulq9vn57g912a0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.emploiboost.emploiboost",
+            "certificate_hash": "795be15ff28cc17df2f3e3925e43c69ca550f7ab"
+          }
+        },
+        {
+          "client_id": "136945913684-u4csamo4opkhlj9nks18s6llfm282ea1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.emploiboost.emploiboost",
+            "certificate_hash": "9f0cce9c6cd23b710cfdd75f5738d5b4da49c9cd"
+          }
+        },
+        {
+          "client_id": "136945913684-uu26eo84aunl7an79t10d6lafh6kvu1p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.emploiboost.emploiboost",
+            "certificate_hash": "b883a998503d45ee9614cded831b815cb4f16448"
+          }
+        },
+        {
+          "client_id": "136945913684-ls5np5o9p7italpnm4r4aose0n5qsrdi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXkEuWTppabzBFBw-9jREiZebqslxC2II"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "136945913684-ls5np5o9p7italpnm4r4aose0n5qsrdi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "136945913684-nh1aqr3g59e6rf1iui96iv3ce8ln19m0.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.emploiboost.emploiboost"
+              }
+            }
+          ]
+        }
+      },
+      "admob_app_id": "ca-app-pub-1360261396564293~3247093400"
+    }
+  ],
+  "configuration_version": "1"
+}

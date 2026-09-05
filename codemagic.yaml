@@ -1,0 +1,36 @@
+workflows:
+  ios-app-store:
+    name: EmploiBoost - iOS App Store
+    max_build_duration: 120
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.emploiboost.emploiboost
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Generate iOS app icons
+        script: dart run flutter_launcher_icons
+      - name: Set up iOS signing
+        script: xcode-project use-profiles
+      - name: Install CocoaPods dependencies
+        script: find . -name "Podfile" -execdir pod install \;
+      - name: Analyze Flutter project
+        script: flutter analyze
+      - name: Run Flutter tests
+        script: flutter test
+      - name: Build signed IPA
+        script: flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false

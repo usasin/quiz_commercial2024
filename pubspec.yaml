@@ -1,0 +1,79 @@
+name: emploiboost
+description: Script de vente étape par étape.
+# Remove the line below if you wish to publish to pub.dev
+publish_to: 'none'
+version: 2.4.2+71
+environment:
+  sdk: '>=3.10.0 <4.0.0'
+dependencies:
+  in_app_review: ^2.0.9
+  flutter:
+    sdk: flutter
+
+  sign_in_with_apple: ^7.0.1
+  flutter_secure_storage: ^9.2.4
+  cached_network_image: ^3.3.0
+  cloud_firestore: ^5.6.12
+  cupertino_icons: ^1.0.6
+  cloud_functions: ^5.0.0
+  firebase_auth: ^5.7.0
+  firebase_core: ^3.15.2
+  firebase_messaging: ^15.2.10
+
+  flutter_html: 3.0.0-beta.2
+  auto_size_text: ^3.0.0
+  flutter_localizations:
+    sdk: flutter
+
+  flutter_svg: ^2.0.9
+  flutter_tts: ^4.2.3
+
+  google_sign_in: ^6.1.6
+  google_mobile_ads: ^5.3.1
+
+
+  qr_flutter: ^4.1.0
+  just_audio: ^0.9.44
+
+  url_launcher: ^6.2.1
+  easy_localization: ^3.0.5
+  firebase_storage: ^12.4.10
+
+  # 🔊 sons du quiz
+  audioplayers: ^6.1.0
+
+  video_player: ^2.8.6
+
+
+  # 📤 partage de l’app / lien Play Store
+  share_plus: ^10.0.0
+  shared_preferences: ^2.5.5
+  path_provider: ^2.1.5
+  package_info_plus: ^8.1.4
+  permission_handler: ^12.0.1
+  record: ^6.1.2
+  in_app_purchase: 3.3.0
+  in_app_purchase_android: 0.5.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21
+generate: true
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/logo.png
+    - assets/icons/Google.svg
+    - assets/images/france.png
+    - assets/images/united-kingdom.png
+    - assets/translations/en.json
+    - assets/translations/fr.json
+    - assets/sounds/correct.mp3
+    - assets/sounds/wrong.mp3

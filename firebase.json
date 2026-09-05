@@ -1,0 +1,33 @@
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "eur3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {"rules": "storage.rules"},
+  "database": {"rules": "database.rules.json"},
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "emploiboost",
+          "appId": "1:136945913684:android:9ea3294884bf72541d02c1",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "emploiboost",
+          "configurations": {
+            "android": "1:136945913684:android:9ea3294884bf72541d02c1"
+          }
+        }
+      }
+    }
+  }
+}

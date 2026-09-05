@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.admin == true
+        );
+    }
+
+    function protectedAccessUntouched() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['entitlements', 'isAdmin', 'admin', 'role', 'testAccess']);
+    }
+
+    // Contenu pédagogique publié : lecture seule pour les applications.
+    match /chapters/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /toolbox_categories/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /tracks/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /glossary/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // L'Assistant utilise des requêtes collectionGroup. Firestore doit donc
+    // autoriser explicitement ces collections, quel que soit leur parent.
+    match /{path=**}/lessons/{lessonId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /{path=**}/items/{itemId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // L'utilisateur conserve sa progression, mais ne peut jamais s'accorder
+    // lui-même Premium ou des crédits. Les Admin SDK/Functions ne sont pas
+    // soumis à ces règles.
+    match /users/{uid} {
+      allow read: if owns(uid) || isAdmin();
+      allow create: if owns(uid)
+        && !request.resource.data.keys()
+          .hasAny(['entitlements', 'isAdmin', 'admin', 'role', 'testAccess']);
+      allow update: if owns(uid) && protectedAccessUntouched();
+      allow delete: if owns(uid);
+    }
+
+    // Configuration publique en lecture. Toutes les écritures passent par
+    // une Function qui revalide le rôle Admin côté serveur.
+    match /system/appConfig {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /leaderboard/{uid} {
+      allow read: if true;
+      allow create, update: if owns(uid)
+        && request.resource.data.uid == uid;
+      allow delete: if owns(uid);
+    }
+
+    // Collections exclusivement serveur.
+    match /_private_ai_usage/{document=**} {
+      allow read, write: if false;
+    }
+    match /_private_ai_sessions/{document=**} {
+      allow read, write: if false;
+    }
+    match /_private_commerce_daily/{document=**} {
+      allow read, write: if false;
+    }
+    match /_private_purchase_receipts/{document=**} {
+      allow read, write: if false;
+    }
+    match /_private_admin_audit/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

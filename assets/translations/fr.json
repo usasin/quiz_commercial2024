@@ -1,0 +1,62 @@
+{
+  "app.name": "Script de vente coach",
+
+  "nav.levels": "Parcours",
+  "nav.learn": "Apprendre",
+  "nav.toolbox": "Outils",
+  "nav.profile": "Profil",
+
+  "login.title": "Script de vente coach",
+  "login.subtitle": "Deviens plus fort en vente avec des leçons courtes et des quiz guidés.",
+  "login.email_button": "Se connecter avec e-mail",
+  "login.google_button": "Continuer avec Google",
+  "login.apple_button": "Continuer avec Apple",
+  "login.or": "ou",
+  "login.error.generic": "Une erreur est survenue. Merci de réessayer.",
+  "login.error.network": "Problème de connexion. Vérifie ta connexion internet.",
+
+  "levels.title": "Parcours",
+  "levels.hero.title": "Continuer l'aventure",
+  "levels.hero.subtitle": "Avance chapitre par chapitre dans ton script commercial.",
+  "levels.hero.progress_label": "Sur {count} chapitres",
+  "levels.section_title": "Ton parcours de vente",
+  "levels.chapter.modules_count": "{count} module(s)",
+  "levels.chapter.completed": "Chapitre terminé",
+
+  "modules.header.subtitle": "Modules du chapitre",
+  "modules.header.hint": "Commence par lire les leçons puis débloque chaque niveau.",
+  "modules.module.progress_label": "Progression module",
+  "modules.module.button.learn": "Apprendre",
+  "modules.module.level1": "Niveau 1",
+  "modules.module.level2": "Niveau 2",
+  "modules.module.level3": "Niveau 3",
+
+  "lessons.header.hint": "Lis les leçons pour bien comprendre, puis lance le quiz adapté à ton niveau.",
+  "lessons.empty": "Aucune leçon disponible pour ce module.",
+  "lessons.footer.level1": "Commencer le niveau 1",
+  "lessons.footer.level2": "Continuer avec le niveau 2",
+  "lessons.footer.level3": "Continuer avec le niveau 3",
+  "lessons.footer.all_validated": "Tous les niveaux sont validés (rejouer le niveau 3)",
+
+  "quiz.title": "Quiz",
+  "quiz.button.next": "Suivant",
+  "quiz.button.validate": "Valider",
+  "quiz.result.success_title": "Bravo !",
+  "quiz.result.failure_title": "On s'en rapproche !",
+
+  "profile.title": "Profil",
+  "profile.section.progress": "Ta progression",
+  "profile.stats.xp": "XP",
+  "profile.stats.streak": "Série (jours)",
+  "profile.stats.total_score": "Score total",
+  "profile.stats.best_area": "Zone la plus maîtrisée",
+  "profile.logout": "Se déconnecter",
+  "profile.logout.confirm_title": "Déconnexion",
+  "profile.logout.confirm_text": "Veux-tu vraiment te déconnecter ?",
+  "profile.logout.cancel": "Annuler",
+  "profile.logout.confirm_button": "Déconnexion"
+}
+
+
+
+

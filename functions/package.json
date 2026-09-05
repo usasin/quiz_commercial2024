@@ -1,0 +1,21 @@
+{
+  "name": "emploiboost-v2-functions",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "lint": "node --check index.js",
+    "deploy": "firebase deploy --only functions",
+    "migrate:v2": "node scripts/migrate-v2-content.js",
+    "migrate:v2:apply": "node scripts/migrate-v2-content.js --apply",
+    "migrate:ntc": "node scripts/migrate-ntc-content.js",
+    "migrate:ntc:apply": "node scripts/migrate-ntc-content.js --apply"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.4.0",
+    "google-auth-library": "^10.2.0"
+  }
+}
