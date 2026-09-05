@@ -47,7 +47,6 @@ app.*.map.json
 # Credentials and signing material
 /android/key.properties
 /android/app/google-services.json
-/ios/Runner/GoogleService-Info.plist
 *.p8
 *.p12
 *.mobileprovision

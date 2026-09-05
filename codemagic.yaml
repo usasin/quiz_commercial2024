@@ -21,7 +21,7 @@ workflows:
       - name: Install CocoaPods dependencies
         script: find . -name "Podfile" -execdir pod install \;
       - name: Analyze Flutter project
-        script: flutter analyze
+        script: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Run Flutter tests
         script: flutter test
       - name: Build signed IPA

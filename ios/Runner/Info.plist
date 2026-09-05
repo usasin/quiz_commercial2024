@@ -32,6 +32,25 @@
 	<string>EmploiBoost utilise le microphone uniquement lorsque vous choisissez d'enregistrer votre voix pour vous entraîner.</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Votre autorisation permet à EmploiBoost de mesurer et personnaliser les publicités. Vos données ne sont pas vendues.</string>
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-1360261396564293~2234086529</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.136945913684-nh1aqr3g59e6rf1iui96iv3ce8ln19m0</string>
+			</array>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>136945913684-nh1aqr3g59e6rf1iui96iv3ce8ln19m0.apps.googleusercontent.com</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

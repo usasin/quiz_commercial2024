@@ -27,6 +27,8 @@ class AdmobBanner extends StatefulWidget {
 class _AdmobBannerState extends State<AdmobBanner> {
   static const String _realAndroidBannerId =
       'ca-app-pub-1360261396564293/5395872499';
+  static const String _realIosBannerId =
+      'ca-app-pub-1360261396564293/1688157587';
 
   static const String _testAndroidBannerId =
       'ca-app-pub-3940256099942544/6300978111';
@@ -38,7 +40,11 @@ class _AdmobBannerState extends State<AdmobBanner> {
   bool _started = false;
 
   String get _bannerUnitId =>
-      kReleaseMode ? _realAndroidBannerId : _testAndroidBannerId;
+      kReleaseMode
+          ? (defaultTargetPlatform == TargetPlatform.iOS
+              ? _realIosBannerId
+              : _realAndroidBannerId)
+          : _testAndroidBannerId;
 
   @override
   void didChangeDependencies() {

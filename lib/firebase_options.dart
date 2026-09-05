@@ -26,10 +26,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-              'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -59,6 +56,17 @@ class DefaultFirebaseOptions {
     projectId: 'emploiboost',
     databaseURL: 'https://emploiboost-default-rtdb.europe-west1.firebasedatabase.app',
     storageBucket: 'emploiboost.appspot.com',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyCeL9yYoq9KpZY52Ll5Hi9mmTNyo4Q70b4',
+    appId: '1:136945913684:ios:bf941dd87e8ac22f1d02c1',
+    messagingSenderId: '136945913684',
+    projectId: 'emploiboost',
+    databaseURL: 'https://emploiboost-default-rtdb.europe-west1.firebasedatabase.app',
+    storageBucket: 'emploiboost.appspot.com',
+    iosClientId: '136945913684-nh1aqr3g59e6rf1iui96iv3ce8ln19m0.apps.googleusercontent.com',
+    iosBundleId: 'com.emploiboost.emploiboost',
   );
 
 }

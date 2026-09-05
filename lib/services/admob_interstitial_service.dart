@@ -21,6 +21,8 @@ class AdmobInterstitialService {
       'ca-app-pub-1360261396564293/4898629147';
   static const String _realSimulationInterstitialId =
       'ca-app-pub-1360261396564293/8806084564';
+  static const String _realIosInterstitialId =
+      'ca-app-pub-1360261396564293/9243822789';
 
   // ✅ ID test officiel Google pour éviter les soucis en debug
   static const String _testInterstitialId =
@@ -34,10 +36,18 @@ class AdmobInterstitialService {
   DateTime? _lastShownAt;
 
   String get _quizAdUnitId =>
-      kReleaseMode ? _realQuizInterstitialId : _testInterstitialId;
+      kReleaseMode
+          ? (defaultTargetPlatform == TargetPlatform.iOS
+              ? _realIosInterstitialId
+              : _realQuizInterstitialId)
+          : _testInterstitialId;
 
   String get _simulationAdUnitId =>
-      kReleaseMode ? _realSimulationInterstitialId : _testInterstitialId;
+      kReleaseMode
+          ? (defaultTargetPlatform == TargetPlatform.iOS
+              ? _realIosInterstitialId
+              : _realSimulationInterstitialId)
+          : _testInterstitialId;
 
   Future<bool> _shouldHideForPremium() async {
     try {
