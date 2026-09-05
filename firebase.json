@@ -11,6 +11,15 @@
   },
   "storage": {"rules": "storage.rules"},
   "database": {"rules": "database.rules.json"},
+  "hosting": {
+    "public": "hosting_public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "cleanUrls": true
+  },
   "flutter": {
     "platforms": {
       "android": {
