@@ -3,7 +3,7 @@ workflows:
     name: EmploiBoost - iOS App Store
     max_build_duration: 120
     integrations:
-      app_store_connect: codemagic
+      app_store_connect: "La Quête du Commercial"
     environment:
       ios_signing:
         distribution_type: app_store
