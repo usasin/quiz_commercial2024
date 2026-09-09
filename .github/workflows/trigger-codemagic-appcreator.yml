@@ -24,3 +24,18 @@ jobs:
             -H "X-GitHub-Delivery: $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             -H "User-Agent: GitHub-Hookshot/appcreatorai" \
             --data-binary "@$GITHUB_EVENT_PATH"
+      - name: Read Codemagic workflow status badge
+        env:
+          STATUS_BADGE: https://api.codemagic.io/apps/677273efc07c62c2e2ac31a0/appcreator-validate/status_badge.svg
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5 6; do
+            echo "STATUS_CHECK=$i"
+            body=$(curl --fail-with-body --silent --show-error "$STATUS_BADGE" || true)
+            printf '%s\n' "$body" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g'
+            echo
+            if printf '%s' "$body" | grep -Eqi 'passing|failing|success|failed|error|building|pending'; then
+              break
+            fi
+            sleep 10
+          done
