@@ -1,0 +1,26 @@
+name: Trigger Codemagic App Creator AI
+
+on:
+  push:
+    branches:
+      - appcreatorai
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-codemagic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Forward GitHub push event to Codemagic
+        env:
+          CODEMAGIC_WEBHOOK: https://api.codemagic.io/hooks/677273efc07c62c2e2ac31a0
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            -X POST "$CODEMAGIC_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: push" \
+            -H "X-GitHub-Delivery: $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            -H "User-Agent: GitHub-Hookshot/appcreatorai" \
+            --data-binary "@$GITHUB_EVENT_PATH"
