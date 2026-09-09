@@ -52,6 +52,13 @@ workflows:
     artifacts:
       - appcreatorai/build/app/outputs/flutter-apk/*.apk
       - appcreatorai/build/ios/iphonesimulator/Runner.app
+    publishing:
+      email:
+        recipients:
+          - ibabhh@gmail.com
+        notify:
+          success: true
+          failure: true
 
   appcreator-android-internal:
     name: App Creator AI - Android Internal
