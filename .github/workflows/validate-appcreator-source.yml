@@ -1,0 +1,49 @@
+name: Validate App Creator AI Source
+
+on:
+  push:
+    branches:
+      - appcreatorai
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - name: Restore App Creator AI
+        run: |
+          set -euo pipefail
+          rm -rf appcreatorai
+          mkdir appcreatorai
+          base64 -d appcreatorai-source-v2.b64 > /tmp/appcreatorai.zip
+          unzip -q /tmp/appcreatorai.zip -d appcreatorai
+      - name: Generate Android platform
+        working-directory: appcreatorai
+        run: |
+          flutter create --org com.digitalsolutionsai --project-name appcreatorai --platforms=android .
+      - name: Dependencies
+        working-directory: appcreatorai
+        run: flutter pub get
+      - name: Generate icon
+        working-directory: appcreatorai
+        run: |
+          python3 scripts/generate_icon.py
+          dart run flutter_launcher_icons
+      - name: Analyze
+        working-directory: appcreatorai
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+      - name: Build Android debug
+        working-directory: appcreatorai
+        run: flutter build apk --debug --no-pub
