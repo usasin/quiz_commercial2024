@@ -1,36 +1,228 @@
 workflows:
-  ios-app-store:
-    name: EmploiBoost - iOS App Store
+  appcreator-validate:
+    name: App Creator AI - Validate
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      flutter: 3.44.8
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: appcreatorai
+          include: true
+          source: true
+    scripts:
+      - name: Restore App Creator AI source
+        script: |
+          rm -rf appcreatorai
+          mkdir appcreatorai
+          python3 - <<'PY2'
+          import base64
+          from pathlib import Path
+          Path('appcreatorai-source-v2.zip').write_bytes(base64.b64decode(Path('appcreatorai-source-v2.b64').read_text()))
+          PY2
+          unzip -q appcreatorai-source-v2.zip -d appcreatorai
+      - name: Generate native platforms
+        script: |
+          cd appcreatorai
+          test -d android || flutter create --org com.digitalsolutionsai --project-name appcreatorai --platforms=android .
+          test -d ios || flutter create --org com.digitalsolutionsai --project-name appcreatorai --platforms=ios .
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName App Creator AI" ios/Runner/Info.plist || true
+          sed -i '' 's/TARGETED_DEVICE_FAMILY = "1,2";/TARGETED_DEVICE_FAMILY = 1;/g' ios/Runner.xcodeproj/project.pbxproj || true
+      - name: Dependencies and icons
+        script: |
+          cd appcreatorai
+          flutter pub get
+          dart run flutter_launcher_icons
+      - name: Analyze
+        script: |
+          cd appcreatorai
+          flutter analyze --no-fatal-warnings --no-fatal-infos
+      - name: Build Android debug APK
+        script: |
+          cd appcreatorai
+          flutter build apk --debug --no-pub
+      - name: Build iOS simulator
+        script: |
+          cd appcreatorai
+          flutter build ios --simulator --debug --no-pub
+    artifacts:
+      - appcreatorai/build/app/outputs/flutter-apk/*.apk
+      - appcreatorai/build/ios/iphonesimulator/Runner.app
+
+  appcreator-android-internal:
+    name: App Creator AI - Android Internal
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - app_creator_ai_upload
+      groups:
+        - google_play
+      flutter: 3.44.8
+    scripts:
+      - name: Restore source
+        script: |
+          rm -rf appcreatorai
+          mkdir appcreatorai
+          python3 - <<'PY2'
+          import base64
+          from pathlib import Path
+          Path('appcreatorai-source-v2.zip').write_bytes(base64.b64decode(Path('appcreatorai-source-v2.b64').read_text()))
+          PY2
+          unzip -q appcreatorai-source-v2.zip -d appcreatorai
+      - name: Generate Android and configure signing
+        script: |
+          cd appcreatorai
+          test -d android || flutter create --org com.digitalsolutionsai --project-name appcreatorai --platforms=android .
+          cat > android/key.properties <<EOF2
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyPassword=$CM_KEY_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          storeFile=$CM_KEYSTORE_PATH
+          EOF2
+          python3 scripts/configure_android_release.py
+          flutter pub get
+          dart run flutter_launcher_icons
+          flutter analyze --no-fatal-warnings --no-fatal-infos
+          flutter build appbundle --release --no-pub --build-name=1.0.0 --build-number=$BUILD_NUMBER
+    artifacts:
+      - appcreatorai/build/app/outputs/bundle/release/*.aab
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
+
+  appcreator-ios-testflight:
+    name: App Creator AI - iOS TestFlight
+    instance_type: mac_mini_m2
     max_build_duration: 120
     integrations:
-      app_store_connect: "La Quête du Commercial"
+      app_store_connect: Codemagic-Prospecto
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.emploiboost.emploiboost
-      flutter: stable
+        bundle_identifier: com.digitalsolutionsai.appcreatorai
+      flutter: 3.44.8
       xcode: latest
       cocoapods: default
     scripts:
-      - name: Get Flutter packages
-        script: flutter pub get
-      - name: Generate iOS app icons
-        script: dart run flutter_launcher_icons
-      - name: Set up iOS signing
-        script: xcode-project use-profiles
-      - name: Install CocoaPods dependencies
-        script: find . -name "Podfile" -execdir pod install \;
-      - name: Analyze Flutter project
-        script: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Run Flutter tests
-        script: flutter test
-      - name: Build signed IPA
-        script: flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+      - name: Restore source
+        script: |
+          rm -rf appcreatorai
+          mkdir appcreatorai
+          python3 - <<'PY2'
+          import base64
+          from pathlib import Path
+          Path('appcreatorai-source-v2.zip').write_bytes(base64.b64decode(Path('appcreatorai-source-v2.b64').read_text()))
+          PY2
+          unzip -q appcreatorai-source-v2.zip -d appcreatorai
+      - name: Generate iOS and prepare signing
+        script: |
+          cd appcreatorai
+          test -d ios || flutter create --org com.digitalsolutionsai --project-name appcreatorai --platforms=ios .
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName App Creator AI" ios/Runner/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" ios/Runner/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/Runner/Info.plist
+          sed -i '' 's/TARGETED_DEVICE_FAMILY = "1,2";/TARGETED_DEVICE_FAMILY = 1;/g' ios/Runner.xcodeproj/project.pbxproj || true
+          flutter pub get
+          dart run flutter_launcher_icons
+          find . -name Podfile -execdir pod install \;
+          xcode-project use-profiles
+          flutter analyze --no-fatal-warnings --no-fatal-infos
+          flutter build ipa --release --no-pub --build-name=1.0.0 --build-number=$BUILD_NUMBER --export-options-plist=$HOME/export_options.plist
     artifacts:
-      - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
+      - appcreatorai/build/ios/ipa/*.ipa
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: false
-        submit_to_app_store: false
+        submit_to_testflight: true
+
+  appcreator-android-production:
+    name: App Creator AI - Android Production
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - app_creator_ai_upload
+      groups:
+        - google_play
+      flutter: 3.44.8
+    scripts:
+      - name: Restore and build
+        script: |
+          rm -rf appcreatorai
+          mkdir appcreatorai
+          python3 - <<'PY2'
+          import base64
+          from pathlib import Path
+          Path('appcreatorai-source-v2.zip').write_bytes(base64.b64decode(Path('appcreatorai-source-v2.b64').read_text()))
+          PY2
+          unzip -q appcreatorai-source-v2.zip -d appcreatorai
+          cd appcreatorai
+          test -d android || flutter create --org com.digitalsolutionsai --project-name appcreatorai --platforms=android .
+          cat > android/key.properties <<EOF2
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyPassword=$CM_KEY_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          storeFile=$CM_KEYSTORE_PATH
+          EOF2
+          python3 scripts/configure_android_release.py
+          flutter pub get
+          dart run flutter_launcher_icons
+          flutter analyze --no-fatal-warnings --no-fatal-infos
+          flutter build appbundle --release --no-pub --build-name=1.0.0 --build-number=$BUILD_NUMBER
+    artifacts:
+      - appcreatorai/build/app/outputs/bundle/release/*.aab
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        track: production
+
+  appcreator-ios-app-store:
+    name: App Creator AI - iOS App Store
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    integrations:
+      app_store_connect: Codemagic-Prospecto
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.digitalsolutionsai.appcreatorai
+      flutter: 3.44.8
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Restore and build
+        script: |
+          rm -rf appcreatorai
+          mkdir appcreatorai
+          python3 - <<'PY2'
+          import base64
+          from pathlib import Path
+          Path('appcreatorai-source-v2.zip').write_bytes(base64.b64decode(Path('appcreatorai-source-v2.b64').read_text()))
+          PY2
+          unzip -q appcreatorai-source-v2.zip -d appcreatorai
+          cd appcreatorai
+          test -d ios || flutter create --org com.digitalsolutionsai --project-name appcreatorai --platforms=ios .
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName App Creator AI" ios/Runner/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" ios/Runner/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/Runner/Info.plist
+          sed -i '' 's/TARGETED_DEVICE_FAMILY = "1,2";/TARGETED_DEVICE_FAMILY = 1;/g' ios/Runner.xcodeproj/project.pbxproj || true
+          flutter pub get
+          dart run flutter_launcher_icons
+          find . -name Podfile -execdir pod install \;
+          xcode-project use-profiles
+          flutter analyze --no-fatal-warnings --no-fatal-infos
+          flutter build ipa --release --no-pub --build-name=1.0.0 --build-number=$BUILD_NUMBER --export-options-plist=$HOME/export_options.plist
+    artifacts:
+      - appcreatorai/build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_app_store: true
+        release_type: AFTER_APPROVAL
