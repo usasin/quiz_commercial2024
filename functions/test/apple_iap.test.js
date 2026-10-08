@@ -8,7 +8,7 @@ const UUID = "29df66ca-71cb-46c3-8cba-9e729f9aec29";
 const makeTransaction = (fields = {}) => ({
   transactionId: "2000000123456789",
   originalTransactionId: "2000000123456789",
-  productId: "premium_monthly",
+  productId: "emploiboost_premium_monthly",
   bundleId: "com.emploiboost.emploiboost",
   appAccountToken: UUID,
   expiresDate: Date.now() + 86400000,
@@ -83,7 +83,7 @@ test("verifies an active subscription against current Apple status", async () =>
   const result = await verifyAppleOrder(options(tx, tx));
   assert.equal(result.type, "subscription");
   assert.equal(result.active, true);
-  assert.equal(result.productId, "premium_monthly");
+  assert.equal(result.productId, "emploiboost_premium_monthly");
 });
 
 test("an expired subscription never activates Premium", async () => {
@@ -99,10 +99,10 @@ test("handles production not-found lookup with sandbox fallback", async () => {
 });
 
 test("refuses signed product IDs not matching requested product", async () => {
-  const original = makeTransaction({productId: "premium_yearly"});
+  const original = makeTransaction({productId: "emploiboost_premium_yearly"});
   await assert.rejects(
     () => verifyAppleOrder({...options(original, original),
-      requestedProductId: "premium_monthly"}),
+      requestedProductId: "emploiboost_premium_monthly"}),
     /Unrecognized or revoked/,
   );
 });
@@ -125,7 +125,7 @@ test("refuses mismatched signed appAccountToken", async () => {
 });
 
 test("one-time intensive-exam pass is verified as a pass, not subscription", async () => {
-  const pass = makeTransaction({productId: "intensive_exam_pass", expiresDate: null});
+  const pass = makeTransaction({productId: "emploiboost_intensive_exam_pass", expiresDate: null});
   const result = await verifyAppleOrder(options(pass, pass));
   assert.equal(result.type, "pass");
   assert.equal(result.active, true);
