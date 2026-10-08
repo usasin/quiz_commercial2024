@@ -1470,7 +1470,7 @@ exports.verifyApplePurchase = onCall({
       if (purchase.active || sameFamily) {
         tx.set(userRef, {entitlements: {
           isPremium: purchase.active,
-          activePlan: purchase.productId === "premium_yearly" ?
+          activePlan: purchase.productId === "emploiboost_premium_yearly" ?
               "PREMIUM_YEARLY" : "PREMIUM_MONTHLY",
           productId: purchase.productId,
           verifiedBy: "app_store",
