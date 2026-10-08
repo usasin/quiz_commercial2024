@@ -19,11 +19,11 @@ Create an **App Store Server API In-App Purchase key** and note its Key ID and I
 This key is **different** from the Apple Sign in private key and the Codemagic App Store Connect upload key.
 
 In **Monetization > Subscriptions**, create a subscription group with:
-- `premium_monthly`, auto-renewable, 1 month.
-- `premium_yearly`, auto-renewable, 1 year.
+- `emploiboost_premium_monthly`, auto-renewable, 1 month.
+- `emploiboost_premium_yearly`, auto-renewable, 1 year.
 
-In **In-App Purchases**, create `intensive_exam_pass` as a **consumable** if the paid intensive exam is enabled in the iOS UI.
-Supply language metadata, prices, review notes and review screenshots. Submit the first products **with the same first app-version submission**.
+In **In-App Purchases**, create `emploiboost_intensive_exam_pass` as a **consumable** if the paid intensive exam is enabled in the iOS UI.
+These Apple IDs are intentionally different from the existing Android IDs `premium_monthly`, `premium_yearly` and `intensive_exam_pass`. Product identifiers already assigned in Apple cannot be reused. Supply language metadata, prices, review notes and review screenshots. Submit the first products **with the same first app-version submission**.
 
 Confirm paid-app agreement/banking/tax information is active and Apple Sign In is configured for `com.emploiboost.emploiboost` in the Apple Developer portal and Firebase Authentication for project `emploiboost`.
 
