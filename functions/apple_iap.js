@@ -9,7 +9,6 @@ const PASSES = new Set(["intensive_exam_pass"]);
 const ROOT_URLS = [
   "https://www.apple.com/certificateauthority/AppleRootCA-G2.cer",
   "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer",
-  "https://www.apple.com/certificateauthority/AppleIncRootCertificate.cer",
 ];
 let rootPromise;
 
