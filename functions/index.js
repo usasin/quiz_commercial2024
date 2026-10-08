@@ -1361,3 +1361,139 @@ exports.googlePlayRtdn = onMessagePublished({
     payload,
   });
 });
+
+
+// --- EmploiBoost App Store Server API (isolated from Google Play) ---
+// Secrets must be provisioned in Firebase Secret Manager before deployment.
+const APPLE_IAP_PRIVATE_KEY = defineSecret("APPLE_IAP_PRIVATE_KEY");
+const APPLE_IAP_KEY_ID = defineSecret("APPLE_IAP_KEY_ID");
+const APPLE_IAP_ISSUER_ID = defineSecret("APPLE_IAP_ISSUER_ID");
+const {verifyAppleOrder, SUBSCRIPTIONS: APPLE_SUBSCRIPTIONS, PASSES: APPLE_PASSES} =
+    require("./apple_iap");
+
+function applePurchaseId(raw) {
+  const id = asText(raw, 40);
+  if (!/^[0-9]{8,25}$/.test(id)) {
+    throw new HttpsError("invalid-argument", "Identifiant de transaction Apple invalide.");
+  }
+  return id;
+}
+
+async function appleUserAccountToken(uid) {
+  const accountRef = db.collection("_private_apple_accounts").doc(uid);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(accountRef);
+    const existing = snap.data()?.uuid;
+    if (typeof existing === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(existing)) return existing;
+    const uuid = crypto.randomUUID();
+    tx.create(accountRef, {uuid, uid, createdAt: FieldValue.serverTimestamp()});
+    return uuid;
+  });
+}
+
+// Use a stable UUID as appAccountToken, not the Firebase UID.
+exports.getApplePurchaseAccount = onCall({region: REGION}, async (request) => {
+  const uid = requireUid(request);
+  return {appAccountToken: await appleUserAccountToken(uid)};
+});
+
+exports.verifyApplePurchase = onCall({
+  region: REGION,
+  timeoutSeconds: 120,
+  secrets: [APPLE_IAP_PRIVATE_KEY, APPLE_IAP_KEY_ID, APPLE_IAP_ISSUER_ID],
+}, async (request) => {
+  const uid = requireUid(request);
+  const productId = asText(request.data?.productId, 100);
+  const transactionId = applePurchaseId(request.data?.transactionId);
+  if (!APPLE_SUBSCRIPTIONS.has(productId) && !APPLE_PASSES.has(productId)) {
+    throw new HttpsError("invalid-argument", "Produit Apple inconnu.");
+  }
+  const accountRef = db.collection("_private_apple_accounts").doc(uid);
+  const identity = await accountRef.get();
+  const accountUuid = identity.data()?.uuid;
+  if (!accountUuid) {
+    throw new HttpsError("failed-precondition", "Compte Apple non initialisé.");
+  }
+  let purchase;
+  try {
+    purchase = await verifyAppleOrder({
+      transactionId,
+      requestedProductId: productId,
+      appAccountToken: accountUuid,
+      signingKey: APPLE_IAP_PRIVATE_KEY.value(),
+      keyId: APPLE_IAP_KEY_ID.value(),
+      issuerId: APPLE_IAP_ISSUER_ID.value(),
+    });
+  } catch (error) {
+    console.warn("App Store purchase could not be verified", error?.message || "unknown");
+    throw new HttpsError("failed-precondition", "Vérification Apple indisponible ou achat invalide.");
+  }
+  const originalHash = crypto.createHash("sha256")
+      .update(`${purchase.environment}:${purchase.originalId}`).digest("hex");
+  const receiptHash = crypto.createHash("sha256")
+      .update(`${purchase.environment}:${purchase.transactionId}`).digest("hex");
+  const ownerRef = db.collection("_private_apple_original_transactions").doc(originalHash);
+  const receiptRef = db.collection("_private_apple_purchase_receipts").doc(receiptHash);
+  const userRef = db.collection("users").doc(uid);
+  await db.runTransaction(async (tx) => {
+    // Every read is performed before any write.
+    const [owner, receipt, account, user] = await Promise.all([
+      tx.get(ownerRef), tx.get(receiptRef), tx.get(accountRef), tx.get(userRef),
+    ]);
+    if (account.data()?.uuid !== accountUuid) {
+      throw new HttpsError("failed-precondition", "Compte utilisateur modifié.");
+    }
+    if (owner.exists && owner.data()?.uid !== uid) {
+      throw new HttpsError("already-exists", "Achat Apple déjà associé à un autre compte.");
+    }
+    if (receipt.exists && receipt.data()?.uid !== uid) {
+      throw new HttpsError("already-exists", "Transaction Apple déjà associée.");
+    }
+    if (!owner.exists) {
+      tx.create(ownerRef, {
+        uid, originalId: purchase.originalId, environment: purchase.environment,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+    if (purchase.type === "pass") {
+      if (!receipt.exists) {
+        const previous = Math.max(0, Number(user.data()?.entitlements?.intensiveExamPasses) || 0);
+        tx.set(userRef, {entitlements: {
+          intensiveExamPasses: previous + 1, updatedAt: FieldValue.serverTimestamp(),
+        }}, {merge: true});
+      }
+    } else {
+      const current = user.data()?.entitlements || {};
+      const sameFamily = current.verifiedBy === "app_store" &&
+          current.originalTransactionHash === originalHash;
+      if (purchase.active || sameFamily) {
+        tx.set(userRef, {entitlements: {
+          isPremium: purchase.active,
+          activePlan: purchase.productId === "premium_yearly" ?
+              "PREMIUM_YEARLY" : "PREMIUM_MONTHLY",
+          productId: purchase.productId,
+          verifiedBy: "app_store",
+          originalTransactionHash: originalHash,
+          subscriptionStatus: purchase.status,
+          subscriptionExpiresAt: purchase.expiryMs ?
+              Timestamp.fromMillis(purchase.expiryMs) : null,
+          lastVerifiedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }}, {merge: true});
+      }
+    }
+    tx.set(receiptRef, {
+      uid, originalTransactionHash: originalHash,
+      transactionId: purchase.transactionId, productId: purchase.productId,
+      kind: purchase.type, active: purchase.active,
+      verifiedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  });
+  return {
+    verified: true,
+    premium: purchase.type === "subscription" && purchase.active,
+    activePlan: purchase.productId, delivered: true,
+    intensiveExamPasses: purchase.type === "pass" ? 1 : 0,
+  };
+});
