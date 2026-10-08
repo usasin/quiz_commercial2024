@@ -1,0 +1,44 @@
+name: EmploiBoost Apple IAP preflight (no Codemagic)
+on:
+  push:
+    branches:
+      - emploiboost-apple-iap-server-20261008
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  test-apple-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Resolve Apple SDK and refresh dependency lock
+        working-directory: functions
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Install locked dependencies
+        working-directory: functions
+        run: npm ci --ignore-scripts
+      - name: Syntax check and isolated Apple IAP tests
+        working-directory: functions
+        run: |
+          npm run lint
+          npm run test:apple
+      - name: Commit reproducible dependency lock to review branch
+        shell: bash
+        run: |
+          if ! git diff --quiet -- functions/package-lock.json; then
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git config user.name 'github-actions[bot]'
+            git add functions/package-lock.json
+            git commit -m "chore: lock official Apple App Store Server SDK"
+            git push
+          else
+            echo 'APPLE_DEPENDENCIES_LOCKED=true'
+          fi
