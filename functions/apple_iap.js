@@ -4,8 +4,8 @@
 // decisions are trusted; Apple signed transactions are verified server-side.
 const APPLE_BUNDLE_ID = "com.emploiboost.emploiboost";
 const APP_APPLE_ID = 6811853468;
-const SUBSCRIPTIONS = new Set(["premium_monthly", "premium_yearly"]);
-const PASSES = new Set(["intensive_exam_pass"]);
+const SUBSCRIPTIONS = new Set(["emploiboost_premium_monthly", "emploiboost_premium_yearly"]);
+const PASSES = new Set(["emploiboost_intensive_exam_pass"]);
 const ROOT_URLS = [
   "https://www.apple.com/certificateauthority/AppleRootCA-G2.cer",
   "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer",
